@@ -242,15 +242,42 @@ export function StudentsSection() {
 
   const loadStudents = async () => {
     try {
-      const supabase = getSupabaseClient()
-      const { data, error } = await supabase.from("students").select("*").order("created_at", { ascending: false })
+      // Add debugging info
+      console.log("🔍 Debug Info:")
+      console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "✅ Set" : "❌ Missing")
+      console.log("Supabase Anon Key:", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "✅ Set" : "❌ Missing")
 
-      if (error) {
-        // Check if it's a "table doesn't exist" error
-        if (error.message.includes("does not exist") || error.code === "42P01") {
+      const supabase = getSupabaseClient()
+
+      // Test the connection first
+      const { data: testData, error: testError } = await supabase
+        .from("students")
+        .select("count", { count: "exact", head: true })
+
+      if (testError) {
+        console.error("❌ Supabase connection test failed:", testError)
+
+        // Check for specific error types
+        if (testError.message.includes("Invalid API key") || testError.message.includes("JWT")) {
+          setDatabaseError("invalid_api_key")
+          return
+        }
+
+        if (testError.message.includes("does not exist") || testError.code === "42P01") {
           setDatabaseError("tables_missing")
           return
         }
+
+        setDatabaseError("connection_error")
+        return
+      }
+
+      console.log("✅ Supabase connection successful")
+
+      // Now fetch the actual data
+      const { data, error } = await supabase.from("students").select("*").order("created_at", { ascending: false })
+
+      if (error) {
         throw error
       }
 
@@ -277,8 +304,9 @@ export function StudentsSection() {
 
       setStudents(transformedStudents)
       setDatabaseError(null)
+      console.log(`✅ Loaded ${transformedStudents.length} students`)
     } catch (error) {
-      console.error("Error loading students:", error)
+      console.error("❌ Error loading students:", error)
       setDatabaseError("connection_error")
     }
   }
@@ -372,6 +400,45 @@ export function StudentsSection() {
                 ))}
               </TableBody>
             </Table>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Show API key error if invalid
+  if (databaseError === "invalid_api_key") {
+    return (
+      <div className="space-y-6 min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6 -m-6">
+        <Card className="border-red-200 bg-red-50">
+          <CardHeader>
+            <CardTitle className="text-red-800 flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              Invalid Supabase API Key
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-red-700">
+            <div className="space-y-4">
+              <p>The Supabase API key is invalid or malformed. This usually means:</p>
+              <ul className="list-disc list-inside space-y-1 ml-4">
+                <li>Environment variables weren't saved properly in Vercel</li>
+                <li>The anon key was copied incorrectly</li>
+                <li>Extra spaces or characters in the key</li>
+              </ul>
+              <div className="bg-white p-3 rounded border">
+                <p className="text-sm font-medium mb-2">Debug Info:</p>
+                <p className="text-xs">URL: {process.env.NEXT_PUBLIC_SUPABASE_URL ? "✅ Set" : "❌ Missing"}</p>
+                <p className="text-xs">
+                  Anon Key: {process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "✅ Set" : "❌ Missing"}
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" asChild>
+                  <a href="/debug">Check Configuration</a>
+                </Button>
+                <Button onClick={() => window.location.reload()}>Retry Connection</Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

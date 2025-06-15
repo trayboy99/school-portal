@@ -1,157 +1,163 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AlertCircle, CheckCircle, ExternalLink } from "lucide-react"
-import { supabaseConfig, isSupabaseConfigured } from "@/lib/supabase"
+import { CheckCircle, XCircle, Database, Key, Globe } from "lucide-react"
+import { useState } from "react"
 
 export default function DebugPage() {
+  const [connectionTest, setConnectionTest] = useState<"idle" | "testing" | "success" | "error">("idle")
+  const [errorDetails, setErrorDetails] = useState<string>("")
+
+  // Environment variables check
   const envVars = {
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   }
 
   const testConnection = async () => {
+    setConnectionTest("testing")
     try {
-      if (!isSupabaseConfigured()) {
-        alert("❌ Supabase is not properly configured. Check environment variables.")
-        return
+      const { createClient } = await import("@supabase/supabase-js")
+
+      if (!envVars.supabaseUrl || !envVars.supabaseAnonKey) {
+        throw new Error("Missing environment variables")
       }
 
-      const { supabase } = await import("@/lib/supabase")
-      const { data, error } = await supabase.from("students").select("count", { count: "exact", head: true })
+      const supabase = createClient(envVars.supabaseUrl, envVars.supabaseAnonKey)
+
+      // Test connection
+      const { error } = await supabase.from("students").select("count", { count: "exact", head: true })
 
       if (error) {
-        alert(`❌ Connection failed: ${error.message}`)
-      } else {
-        alert("✅ Supabase connection successful!")
+        throw error
       }
-    } catch (error) {
-      alert(`❌ Connection error: ${error}`)
+
+      setConnectionTest("success")
+      setErrorDetails("")
+    } catch (error: any) {
+      setConnectionTest("error")
+      setErrorDetails(error.message || "Unknown error")
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Supabase Connection Debug</h1>
-          <p className="text-gray-600">Check your database connection and configuration</p>
-        </div>
-
-        {/* Overall Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {isSupabaseConfigured() ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              ) : (
-                <AlertCircle className="h-5 w-5 text-red-500" />
-              )}
-              Connection Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <Badge variant={isSupabaseConfigured() ? "default" : "destructive"}>
-                {isSupabaseConfigured() ? "✅ Ready" : "❌ Not Configured"}
-              </Badge>
-              {isSupabaseConfigured() && (
-                <Button onClick={testConnection} size="sm">
-                  Test Connection
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Environment Variables Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Environment Variables Status:</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {Object.entries(supabaseConfig).map(([key, status]) => (
-              <div key={key} className="flex items-center justify-between">
-                <span className="font-medium">{key}:</span>
-                <Badge variant={status.includes("✅") ? "default" : "destructive"}>{status}</Badge>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Environment Variable Values (for debugging) */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Environment Variable Values:</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {Object.entries(envVars).map(([key, value]) => (
-              <div key={key} className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-sm">{key}:</span>
-                  <Badge variant={value ? "default" : "destructive"}>{value ? "Set" : "Missing"}</Badge>
-                </div>
-                {value && (
-                  <div className="text-xs text-gray-600 font-mono bg-gray-100 p-2 rounded">
-                    {key.includes("KEY") ? `${value.substring(0, 20)}...` : value}
-                  </div>
-                )}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex flex-wrap gap-3">
-              <Button variant="outline" asChild>
-                <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Open Supabase Dashboard
-                </a>
-              </Button>
-              <Button variant="outline" asChild>
-                <a href="/setup" target="_blank" rel="noopener noreferrer">
-                  Database Setup
-                </a>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Troubleshooting */}
-        {!isSupabaseConfigured() && (
-          <Card className="border-red-200 bg-red-50">
-            <CardHeader>
-              <CardTitle className="text-red-800">🚨 Configuration Issues Detected</CardTitle>
-            </CardHeader>
-            <CardContent className="text-red-700 space-y-2">
-              <p>
-                <strong>To fix this:</strong>
-              </p>
-              <ol className="list-decimal list-inside space-y-1">
-                <li>
-                  Go to your <strong>Vercel Dashboard</strong>
-                </li>
-                <li>
-                  Click your project → <strong>Settings</strong> → <strong>Environment Variables</strong>
-                </li>
-                <li>Add the missing environment variables from your Supabase project</li>
-                <li>
-                  <strong>Redeploy</strong> your project
-                </li>
-              </ol>
-            </CardContent>
-          </Card>
-        )}
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="text-center">
+        <h1 className="text-3xl font-bold">Configuration Debug</h1>
+        <p className="text-gray-600 mt-2">Check your Supabase configuration and connection</p>
       </div>
+
+      {/* Environment Variables */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            Environment Variables
+          </CardTitle>
+          <CardDescription>Check if all required environment variables are set</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3">
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
+              <span className="font-mono text-sm">NEXT_PUBLIC_SUPABASE_URL</span>
+              {envVars.supabaseUrl ? (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <Badge variant="secondary">{envVars.supabaseUrl}</Badge>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <XCircle className="h-4 w-4 text-red-500" />
+                  <Badge variant="destructive">Missing</Badge>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
+              <span className="font-mono text-sm">NEXT_PUBLIC_SUPABASE_ANON_KEY</span>
+              {envVars.supabaseAnonKey ? (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <Badge variant="secondary">{envVars.supabaseAnonKey.substring(0, 20)}...</Badge>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <XCircle className="h-4 w-4 text-red-500" />
+                  <Badge variant="destructive">Missing</Badge>
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Connection Test */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            Connection Test
+          </CardTitle>
+          <CardDescription>Test the connection to your Supabase database</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button
+            onClick={testConnection}
+            disabled={connectionTest === "testing" || !envVars.supabaseUrl || !envVars.supabaseAnonKey}
+            className="w-full"
+          >
+            {connectionTest === "testing" ? "Testing Connection..." : "Test Connection"}
+          </Button>
+
+          {connectionTest === "success" && (
+            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <span className="text-green-700">✅ Connection successful!</span>
+            </div>
+          )}
+
+          {connectionTest === "error" && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded">
+                <XCircle className="h-5 w-5 text-red-500" />
+                <span className="text-red-700">❌ Connection failed</span>
+              </div>
+              <div className="p-3 bg-gray-50 rounded">
+                <p className="text-sm font-medium">Error Details:</p>
+                <code className="text-xs text-red-600">{errorDetails}</code>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Instructions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Globe className="h-5 w-5" />
+            Setup Instructions
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
+            <div className="p-3 border-l-4 border-blue-500 bg-blue-50">
+              <h4 className="font-medium">1. Get Supabase Credentials</h4>
+              <p className="text-sm text-gray-600">Go to Supabase Dashboard → Settings → API</p>
+            </div>
+            <div className="p-3 border-l-4 border-blue-500 bg-blue-50">
+              <h4 className="font-medium">2. Add to Vercel</h4>
+              <p className="text-sm text-gray-600">Vercel Dashboard → Project → Settings → Environment Variables</p>
+            </div>
+            <div className="p-3 border-l-4 border-blue-500 bg-blue-50">
+              <h4 className="font-medium">3. Redeploy</h4>
+              <p className="text-sm text-gray-600">Trigger a new deployment after adding variables</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
