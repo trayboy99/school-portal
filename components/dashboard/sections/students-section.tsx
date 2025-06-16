@@ -28,6 +28,7 @@ import {
   ChevronDown,
   AlertCircle,
   Database,
+  RefreshCw,
 } from "lucide-react"
 import {
   Dialog,
@@ -59,8 +60,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase"
-
 interface Student {
   id: number
   name: string
@@ -85,7 +84,47 @@ interface Filters {
   gender: string[]
 }
 
-// Class and Section Management Settings (should be shared across the app)
+// Sample data for demo purposes
+const sampleStudents: Student[] = [
+  {
+    id: 1,
+    name: "John Doe",
+    rollNo: "2024001",
+    class: "JSS 1",
+    section: "Gold",
+    email: "john.doe@email.com",
+    phone: "+234 801 234 5678",
+    status: "Active",
+    avatar: "/placeholder.svg?height=40&width=40",
+    admissionDate: "2024-01-15",
+    dateOfBirth: "2010-05-20",
+    gender: "Male",
+    address: "123 Main Street, Lagos",
+    parentName: "Jane Doe",
+    parentPhone: "+234 802 345 6789",
+    parentEmail: "jane.doe@email.com",
+  },
+  {
+    id: 2,
+    name: "Sarah Smith",
+    rollNo: "2024002",
+    class: "JSS 2",
+    section: "Silver",
+    email: "sarah.smith@email.com",
+    phone: "+234 803 456 7890",
+    status: "Active",
+    avatar: "/placeholder.svg?height=40&width=40",
+    admissionDate: "2024-01-16",
+    dateOfBirth: "2009-08-15",
+    gender: "Female",
+    address: "456 Oak Avenue, Abuja",
+    parentName: "Robert Smith",
+    parentPhone: "+234 804 567 8901",
+    parentEmail: "robert.smith@email.com",
+  },
+]
+
+// Class and Section Management Settings
 const classCategories = [
   {
     id: 1,
@@ -136,7 +175,11 @@ export function StudentsSection() {
   const editFileInputRef = useRef<HTMLInputElement>(null)
   const [databaseError, setDatabaseError] = useState<string | null>(null)
   const [isCreatingTables, setIsCreatingTables] = useState(false)
-  const [students, setStudents] = useState<Student[]>([])
+  const [students, setStudents] = useState<Student[]>(sampleStudents)
+  const [connectionStatus, setConnectionStatus] = useState<"checking" | "connected" | "error" | "not_configured">(
+    "checking",
+  )
+  const [errorMessage, setErrorMessage] = useState<string>("")
 
   // Filter state
   const [filters, setFilters] = useState<Filters>({
@@ -185,34 +228,155 @@ export function StudentsSection() {
     avatar: "",
   })
 
-  // Add useEffect to load students from database
+  // Check Supabase configuration and connection
   useEffect(() => {
-    loadStudents()
+    checkSupabaseConnection()
   }, [])
 
-  // NOW do the conditional checks AFTER all hooks are declared
-  // Check if Supabase is configured
-  if (!isSupabaseConfigured()) {
-    return (
-      <div className="space-y-6 min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6 -m-6">
-        <Card className="border-red-200 bg-red-50">
-          <CardHeader>
-            <CardTitle className="text-red-800 flex items-center gap-2">
-              <AlertCircle className="h-5 w-5" />
-              Database Not Configured
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-red-700">
-            <p className="mb-4">
-              Supabase database is not properly configured. Please check your environment variables.
-            </p>
-            <Button variant="outline" asChild>
-              <a href="/debug">Check Configuration</a>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
+  const checkSupabaseConnection = async () => {
+    try {
+      console.log("🔍 Checking Supabase configuration...")
+
+      // Check environment variables
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+      console.log("Environment variables:")
+      console.log("- NEXT_PUBLIC_SUPABASE_URL:", supabaseUrl ? "✅ Set" : "❌ Missing")
+      console.log("- NEXT_PUBLIC_SUPABASE_ANON_KEY:", supabaseAnonKey ? "✅ Set" : "❌ Missing")
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        setConnectionStatus("not_configured")
+        setErrorMessage("Missing Supabase environment variables")
+        return
+      }
+
+      // Try to create Supabase client
+      const { createClient } = await import("@supabase/supabase-js")
+      const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+      console.log("🔗 Testing Supabase connection...")
+
+      // Test the connection with more detailed error handling
+      console.log("🔗 Testing Supabase connection...")
+
+      try {
+        // First test: Simple query to check if we can connect
+        const { data, error, status, statusText } = await supabase
+          .from("students")
+          .select("count", { count: "exact", head: true })
+
+        console.log("Connection test results:")
+        console.log("- Status:", status)
+        console.log("- Status Text:", statusText)
+        console.log("- Data:", data)
+        console.log("- Error:", error)
+
+        if (error) {
+          console.error("❌ Supabase connection failed:", {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code,
+          })
+
+          // Check for specific error types
+          if (status === 401) {
+            setConnectionStatus("error")
+            setDatabaseError("invalid_api_key")
+            setErrorMessage(
+              `401 Unauthorized: Invalid API key or insufficient permissions. Please check your NEXT_PUBLIC_SUPABASE_ANON_KEY.`,
+            )
+            return
+          } else if (error.message.includes("relation") && error.message.includes("does not exist")) {
+            setConnectionStatus("error")
+            setDatabaseError("tables_missing")
+            setErrorMessage("Database tables don't exist yet")
+          } else if (error.message.includes("Invalid API key") || error.message.includes("JWT")) {
+            setConnectionStatus("error")
+            setDatabaseError("invalid_api_key")
+            setErrorMessage(`Invalid Supabase API key: ${error.message}`)
+          } else if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
+            setConnectionStatus("error")
+            setDatabaseError("network_error")
+            setErrorMessage(`Network error: Cannot reach Supabase server. Check your URL: ${supabaseUrl}`)
+          } else if (error.message.includes("CORS")) {
+            setConnectionStatus("error")
+            setDatabaseError("cors_error")
+            setErrorMessage("CORS error: Check your Supabase project settings")
+          } else {
+            setConnectionStatus("error")
+            setDatabaseError("connection_error")
+            setErrorMessage(error.message || "Unknown connection error")
+          }
+          return
+        }
+
+        console.log("✅ Supabase connection successful!")
+        setConnectionStatus("connected")
+        setErrorMessage("")
+
+        // Load students from database
+        await loadStudentsFromDatabase(supabase)
+      } catch (networkError: any) {
+        console.error("❌ Network/Connection Error:", networkError)
+        setConnectionStatus("error")
+        setDatabaseError("network_error")
+        setErrorMessage(`Connection failed: ${networkError.message || "Cannot reach Supabase server"}`)
+        return
+      }
+    } catch (error: any) {
+      console.error("❌ Error checking Supabase:", error)
+      setConnectionStatus("error")
+      setErrorMessage(error.message || "Failed to connect to database")
+    }
+  }
+
+  const loadStudentsFromDatabase = async (supabase?: any) => {
+    try {
+      if (!supabase) {
+        const { createClient } = await import("@supabase/supabase-js")
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+        if (!supabaseUrl || !supabaseAnonKey) {
+          throw new Error("Missing Supabase configuration")
+        }
+
+        supabase = createClient(supabaseUrl, supabaseAnonKey)
+      }
+
+      const { data, error } = await supabase.from("students").select("*").order("created_at", { ascending: false })
+
+      if (error) throw error
+
+      // Transform database data to match component interface
+      const transformedStudents =
+        data?.map((student: any) => ({
+          id: student.id,
+          name: student.name,
+          rollNo: student.roll_no,
+          class: student.class,
+          section: student.section,
+          email: student.email,
+          phone: student.phone || "",
+          status: student.status,
+          avatar: student.avatar || `/placeholder.svg?height=40&width=40&query=student`,
+          admissionDate: student.admission_date,
+          dateOfBirth: student.date_of_birth,
+          gender: student.gender,
+          address: student.address || "",
+          parentName: student.parent_name || "",
+          parentPhone: student.parent_phone || "",
+          parentEmail: student.parent_email || "",
+        })) || []
+
+      setStudents(transformedStudents)
+      console.log(`✅ Loaded ${transformedStudents.length} students from database`)
+    } catch (error: any) {
+      console.error("❌ Error loading students from database:", error)
+      // Keep using sample data if database fails
+    }
   }
 
   const createTables = async () => {
@@ -227,8 +391,8 @@ export function StudentsSection() {
       if (result.success) {
         alert("Database tables created successfully!")
         setDatabaseError(null)
-        // Try loading students again
-        await loadStudents()
+        // Recheck connection
+        await checkSupabaseConnection()
       } else {
         alert("Failed to create tables: " + result.error)
       }
@@ -240,113 +404,48 @@ export function StudentsSection() {
     }
   }
 
-  const loadStudents = async () => {
-    try {
-      // Add debugging info
-      console.log("🔍 Debug Info:")
-      console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "✅ Set" : "❌ Missing")
-      console.log("Supabase Anon Key:", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "✅ Set" : "❌ Missing")
-
-      const supabase = getSupabaseClient()
-
-      // Test the connection first
-      const { data: testData, error: testError } = await supabase
-        .from("students")
-        .select("count", { count: "exact", head: true })
-
-      if (testError) {
-        console.error("❌ Supabase connection test failed:", testError)
-
-        // Check for specific error types
-        if (testError.message.includes("Invalid API key") || testError.message.includes("JWT")) {
-          setDatabaseError("invalid_api_key")
-          return
-        }
-
-        if (testError.message.includes("does not exist") || testError.code === "42P01") {
-          setDatabaseError("tables_missing")
-          return
-        }
-
-        setDatabaseError("connection_error")
-        return
-      }
-
-      console.log("✅ Supabase connection successful")
-
-      // Now fetch the actual data
-      const { data, error } = await supabase.from("students").select("*").order("created_at", { ascending: false })
-
-      if (error) {
-        throw error
-      }
-
-      // Transform database data to match component interface
-      const transformedStudents =
-        data?.map((student) => ({
-          id: student.id,
-          name: student.name,
-          rollNo: student.roll_no,
-          class: student.class,
-          section: student.section,
-          email: student.email,
-          phone: student.phone || "",
-          status: student.status,
-          avatar: student.avatar || `/placeholder.svg?height=40&width=40`,
-          admissionDate: student.admission_date,
-          dateOfBirth: student.date_of_birth,
-          gender: student.gender,
-          address: student.address || "",
-          parentName: student.parent_name || "",
-          parentPhone: student.parent_phone || "",
-          parentEmail: student.parent_email || "",
-        })) || []
-
-      setStudents(transformedStudents)
-      setDatabaseError(null)
-      console.log(`✅ Loaded ${transformedStudents.length} students`)
-    } catch (error) {
-      console.error("❌ Error loading students:", error)
-      setDatabaseError("connection_error")
-    }
-  }
-
-  // Show database setup UI if tables are missing
-  if (databaseError === "tables_missing") {
+  // Show configuration error
+  if (connectionStatus === "not_configured") {
     return (
       <div className="space-y-6 min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6 -m-6">
-        <Card className="border-yellow-200 bg-yellow-50">
+        <Card className="border-red-200 bg-red-50">
           <CardHeader>
-            <CardTitle className="text-yellow-800 flex items-center gap-2">
-              <Database className="h-5 w-5" />
-              Database Tables Missing
+            <CardTitle className="text-red-800 flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              Supabase Not Configured
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-yellow-700">
-            <p className="mb-4">
-              The database tables haven't been created yet. Click the button below to create them automatically.
-            </p>
-            <div className="flex gap-3">
-              <Button onClick={createTables} disabled={isCreatingTables}>
-                {isCreatingTables ? "Creating Tables..." : "Create Database Tables"}
-              </Button>
-              <Button variant="outline" asChild>
-                <a href="/setup">Manual Setup</a>
-              </Button>
+          <CardContent className="text-red-700">
+            <div className="space-y-4">
+              <p>Supabase environment variables are missing. Please configure them in Vercel.</p>
+              <div className="bg-white p-3 rounded border">
+                <p className="text-sm font-medium mb-2">Required Variables:</p>
+                <ul className="text-xs space-y-1">
+                  <li>• NEXT_PUBLIC_SUPABASE_URL</li>
+                  <li>• NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
+                </ul>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" asChild>
+                  <a href="/debug">Debug Configuration</a>
+                </Button>
+                <Button onClick={checkSupabaseConnection}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Retry Connection
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Show demo data while tables are missing */}
+        {/* Show demo data */}
         <Card className="bg-white/80 backdrop-blur-sm border-white/20 shadow-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-orange-500" />
-              Demo Data (Database Not Ready)
+              Demo Mode (Database Not Connected)
             </CardTitle>
-            <CardDescription>
-              This is sample data. Create the database tables above to start using real data.
-            </CardDescription>
+            <CardDescription>Configure Supabase to use real data. Currently showing sample data.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -406,6 +505,39 @@ export function StudentsSection() {
     )
   }
 
+  // Show database setup UI if tables are missing
+  if (databaseError === "tables_missing") {
+    return (
+      <div className="space-y-6 min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6 -m-6">
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardHeader>
+            <CardTitle className="text-yellow-800 flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              Database Tables Missing
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-yellow-700">
+            <p className="mb-4">
+              The database tables haven't been created yet. Click the button below to create them automatically.
+            </p>
+            <div className="flex gap-3">
+              <Button onClick={createTables} disabled={isCreatingTables}>
+                {isCreatingTables ? "Creating Tables..." : "Create Database Tables"}
+              </Button>
+              <Button variant="outline" asChild>
+                <a href="/setup">Manual Setup</a>
+              </Button>
+              <Button variant="outline" onClick={checkSupabaseConnection}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Retry Connection
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   // Show API key error if invalid
   if (databaseError === "invalid_api_key") {
     return (
@@ -419,24 +551,93 @@ export function StudentsSection() {
           </CardHeader>
           <CardContent className="text-red-700">
             <div className="space-y-4">
-              <p>The Supabase API key is invalid or malformed. This usually means:</p>
-              <ul className="list-disc list-inside space-y-1 ml-4">
-                <li>Environment variables weren't saved properly in Vercel</li>
-                <li>The anon key was copied incorrectly</li>
-                <li>Extra spaces or characters in the key</li>
-              </ul>
+              <p>The Supabase API key is invalid or malformed.</p>
               <div className="bg-white p-3 rounded border">
-                <p className="text-sm font-medium mb-2">Debug Info:</p>
-                <p className="text-xs">URL: {process.env.NEXT_PUBLIC_SUPABASE_URL ? "✅ Set" : "❌ Missing"}</p>
-                <p className="text-xs">
-                  Anon Key: {process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "✅ Set" : "❌ Missing"}
-                </p>
+                <p className="text-sm font-medium mb-2">Error Details:</p>
+                <code className="text-xs text-red-600">{errorMessage}</code>
               </div>
               <div className="flex gap-3">
                 <Button variant="outline" asChild>
-                  <a href="/debug">Check Configuration</a>
+                  <a href="/debug">Debug Configuration</a>
                 </Button>
-                <Button onClick={() => window.location.reload()}>Retry Connection</Button>
+                <Button onClick={checkSupabaseConnection}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Retry Connection
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Show connection error
+  if (connectionStatus === "error" && databaseError === "connection_error") {
+    return (
+      <div className="space-y-6 min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6 -m-6">
+        <Card className="border-red-200 bg-red-50">
+          <CardHeader>
+            <CardTitle className="text-red-800 flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              Database Connection Error
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-red-700">
+            <div className="space-y-4">
+              <p>Failed to connect to the Supabase database.</p>
+              <div className="bg-white p-3 rounded border">
+                <p className="text-sm font-medium mb-2">Error Details:</p>
+                <code className="text-xs text-red-600">{errorMessage}</code>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" asChild>
+                  <a href="/debug">Debug Configuration</a>
+                </Button>
+                <Button onClick={checkSupabaseConnection}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Retry Connection
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Show network error
+  if (databaseError === "network_error") {
+    return (
+      <div className="space-y-6 min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6 -m-6">
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader>
+            <CardTitle className="text-orange-800 flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              Network Connection Error
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-orange-700">
+            <div className="space-y-4">
+              <p>Cannot reach the Supabase server. This could be due to:</p>
+              <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+                <li>Incorrect Supabase URL</li>
+                <li>Network connectivity issues</li>
+                <li>Supabase service temporarily unavailable</li>
+                <li>Firewall blocking the connection</li>
+              </ul>
+              <div className="bg-white p-3 rounded border">
+                <p className="text-sm font-medium mb-2">Error Details:</p>
+                <code className="text-xs text-orange-600">{errorMessage}</code>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" asChild>
+                  <a href="/debug">Debug Configuration</a>
+                </Button>
+                <Button onClick={checkSupabaseConnection}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Retry Connection
+                </Button>
               </div>
             </div>
           </CardContent>
@@ -510,69 +711,98 @@ export function StudentsSection() {
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    try {
-      const supabase = getSupabaseClient()
-      // Insert into Supabase
-      const { data, error } = await supabase
-        .from("students")
-        .insert([
-          {
-            name: `${formData.firstName} ${formData.middleName} ${formData.surname}`.replace(/\s+/g, " ").trim(),
-            roll_no: generateRollNumber(),
-            class: formData.class,
-            section: formData.section,
-            email: formData.email,
-            phone: formData.phone,
-            status: "Active",
-            avatar: formData.avatar || `/placeholder.svg?height=40&width=40&query=student`,
-            admission_date: new Date().toISOString().split("T")[0],
-            date_of_birth: formData.dateOfBirth,
-            gender: formData.gender,
-            address: formData.address,
-            parent_name: formData.parentName,
-            parent_phone: formData.parentPhone,
-            parent_email: formData.parentEmail,
-          },
-        ])
-        .select()
-
-      if (error) throw error
-
-      // Reload students from database
-      await loadStudents()
-
-      alert("Student added successfully!")
-      setIsAddDialogOpen(false)
-
-      // Reset form
-      setFormData({
-        surname: "",
-        middleName: "",
-        firstName: "",
-        email: "",
-        phone: "",
-        dateOfBirth: "",
-        gender: "",
-        class: "",
-        section: "",
-        address: "",
-        parentName: "",
-        parentPhone: "",
-        parentEmail: "",
-        emergencyContact: "",
-        emergencyPhone: "",
-        medicalInfo: "",
-        credentialMethod: "",
-        customUsername: "",
-        customPassword: "",
-        sendCredentialsTo: "",
-        avatar: "",
-      })
-      setImagePreview(null)
-    } catch (error) {
-      console.error("Error adding student:", error)
-      alert("Failed to add student to database")
+    const newStudent: Student = {
+      id: students.length + 1,
+      name: `${formData.firstName} ${formData.middleName} ${formData.surname}`.replace(/\s+/g, " ").trim(),
+      rollNo: generateRollNumber(),
+      class: formData.class,
+      section: formData.section,
+      email: formData.email,
+      phone: formData.phone,
+      status: "Active",
+      avatar: formData.avatar || `/placeholder.svg?height=40&width=40&query=student`,
+      admissionDate: new Date().toISOString().split("T")[0],
+      dateOfBirth: formData.dateOfBirth,
+      gender: formData.gender,
+      address: formData.address,
+      parentName: formData.parentName,
+      parentPhone: formData.parentPhone,
+      parentEmail: formData.parentEmail,
     }
+
+    // If connected to database, try to save there
+    if (connectionStatus === "connected") {
+      try {
+        const { createClient } = await import("@supabase/supabase-js")
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+        if (supabaseUrl && supabaseAnonKey) {
+          const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+          const { error } = await supabase.from("students").insert([
+            {
+              name: newStudent.name,
+              roll_no: newStudent.rollNo,
+              class: newStudent.class,
+              section: newStudent.section,
+              email: newStudent.email,
+              phone: newStudent.phone,
+              status: newStudent.status,
+              avatar: newStudent.avatar,
+              admission_date: newStudent.admissionDate,
+              date_of_birth: newStudent.dateOfBirth,
+              gender: newStudent.gender,
+              address: newStudent.address,
+              parent_name: newStudent.parentName,
+              parent_phone: newStudent.parentPhone,
+              parent_email: newStudent.parentEmail,
+            },
+          ])
+
+          if (error) throw error
+
+          // Reload from database
+          await loadStudentsFromDatabase(supabase)
+        }
+      } catch (error) {
+        console.error("Error saving to database:", error)
+        // Fall back to local storage
+        setStudents((prev) => [...prev, newStudent])
+      }
+    } else {
+      // Add to local state only
+      setStudents((prev) => [...prev, newStudent])
+    }
+
+    alert("Student added successfully!")
+    setIsAddDialogOpen(false)
+
+    // Reset form
+    setFormData({
+      surname: "",
+      middleName: "",
+      firstName: "",
+      email: "",
+      phone: "",
+      dateOfBirth: "",
+      gender: "",
+      class: "",
+      section: "",
+      address: "",
+      parentName: "",
+      parentPhone: "",
+      parentEmail: "",
+      emergencyContact: "",
+      emergencyPhone: "",
+      medicalInfo: "",
+      credentialMethod: "",
+      customUsername: "",
+      customPassword: "",
+      sendCredentialsTo: "",
+      avatar: "",
+    })
+    setImagePreview(null)
   }
 
   const handleViewStudent = (student: Student) => {
@@ -711,6 +941,21 @@ export function StudentsSection() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Students</h1>
           <p className="text-gray-600">Manage student information and records</p>
+          {connectionStatus === "connected" && (
+            <Badge variant="secondary" className="mt-1">
+              ✅ Connected to Database
+            </Badge>
+          )}
+          {connectionStatus === "checking" && (
+            <Badge variant="outline" className="mt-1">
+              🔄 Checking Connection...
+            </Badge>
+          )}
+          {connectionStatus !== "connected" && connectionStatus !== "checking" && (
+            <Badge variant="destructive" className="mt-1">
+              ⚠️ Using Demo Data
+            </Badge>
+          )}
         </div>
         <div className="flex space-x-3">
           <Button variant="outline">
@@ -740,11 +985,9 @@ export function StudentsSection() {
                           {imagePreview ? (
                             <AvatarImage src={imagePreview || "/placeholder.svg"} alt="Preview" />
                           ) : (
-                            <>
-                              <AvatarFallback>
-                                <User className="h-12 w-12 text-gray-400" />
-                              </AvatarFallback>
-                            </>
+                            <AvatarFallback>
+                              <User className="h-12 w-12 text-gray-400" />
+                            </AvatarFallback>
                           )}
                         </Avatar>
                         {imagePreview && (
@@ -962,180 +1205,6 @@ export function StudentsSection() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Emergency Contact */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold border-b pb-2">Emergency Contact</h3>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="emergencyContact">Emergency Contact Name</Label>
-                        <Input
-                          id="emergencyContact"
-                          value={formData.emergencyContact}
-                          onChange={(e) => handleInputChange("emergencyContact", e.target.value)}
-                          placeholder="Emergency contact name"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="emergencyPhone">Emergency Phone</Label>
-                        <Input
-                          id="emergencyPhone"
-                          value={formData.emergencyPhone}
-                          onChange={(e) => handleInputChange("emergencyPhone", e.target.value)}
-                          placeholder="+234 xxx xxx xxxx"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Medical Information */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold border-b pb-2">Medical Information</h3>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="medicalInfo">Medical Conditions/Allergies</Label>
-                      <Textarea
-                        id="medicalInfo"
-                        value={formData.medicalInfo}
-                        onChange={(e) => handleInputChange("medicalInfo", e.target.value)}
-                        placeholder="Any medical conditions, allergies, or special requirements"
-                        rows={3}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Login Credentials */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold border-b pb-2">Login Credentials</h3>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="credentialMethod">Credential Setup Method *</Label>
-                      <Select
-                        value={formData.credentialMethod}
-                        onValueChange={(value) => handleInputChange("credentialMethod", value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select credential setup method" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="auto-generate">Auto-generate credentials (recommended)</SelectItem>
-                          <SelectItem value="custom">Set custom credentials</SelectItem>
-                          <SelectItem value="email-setup">Send setup link via email</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {formData.credentialMethod === "auto-generate" && (
-                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                        <h4 className="font-medium text-blue-800 mb-2">Auto-Generated Credentials</h4>
-                        <p className="text-sm text-blue-700 mb-3">
-                          System will automatically generate secure login credentials for the student.
-                        </p>
-                        <div className="space-y-2">
-                          <div className="text-sm">
-                            <strong>Username:</strong> Will be auto-generated (e.g., john.doe.2024)
-                          </div>
-                          <div className="text-sm">
-                            <strong>Password:</strong> Will be auto-generated (8-character secure password)
-                          </div>
-                          <div className="text-sm text-blue-600">
-                            ✓ Student will be required to change password on first login
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {formData.credentialMethod === "custom" && (
-                      <div className="space-y-4">
-                        <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                          <p className="text-sm text-yellow-800">
-                            ⚠️ Setting custom credentials requires you to securely share them with the student.
-                          </p>
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="customUsername">Username *</Label>
-                            <Input
-                              id="customUsername"
-                              value={formData.customUsername}
-                              onChange={(e) => handleInputChange("customUsername", e.target.value)}
-                              placeholder="Enter username"
-                              required={formData.credentialMethod === "custom"}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="customPassword">Temporary Password *</Label>
-                            <Input
-                              id="customPassword"
-                              type="password"
-                              value={formData.customPassword}
-                              onChange={(e) => handleInputChange("customPassword", e.target.value)}
-                              placeholder="Enter temporary password"
-                              required={formData.credentialMethod === "custom"}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {formData.credentialMethod === "email-setup" && (
-                      <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                        <h4 className="font-medium text-green-800 mb-2">Email Setup Process</h4>
-                        <p className="text-sm text-green-700 mb-3">
-                          A secure setup link will be sent to the student's email address. They can create their own
-                          username and password.
-                        </p>
-                        <div className="text-sm text-green-600">
-                          ✓ Most secure method - student creates their own credentials
-                          <br />✓ Setup link expires in 24 hours
-                          <br />✓ Email verification included
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      <Label htmlFor="sendCredentialsTo">Send Credentials To</Label>
-                      <Select
-                        value={formData.sendCredentialsTo}
-                        onChange={(value) => handleInputChange("sendCredentialsTo", value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select who receives the credentials" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="student">Student Email</SelectItem>
-                          <SelectItem value="parent">Parent Email</SelectItem>
-                          <SelectItem value="both">Both Student and Parent</SelectItem>
-                          <SelectItem value="print">Print Credentials (Manual Delivery)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {formData.sendCredentialsTo && formData.sendCredentialsTo !== "print" && (
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-sm text-gray-700">
-                          📧 Credentials will be sent to:{" "}
-                          {formData.sendCredentialsTo === "student"
-                            ? formData.email
-                            : formData.sendCredentialsTo === "parent"
-                              ? formData.parentEmail
-                              : formData.sendCredentialsTo === "both"
-                                ? `${formData.email} and ${formData.parentEmail}`
-                                : ""}
-                        </p>
-                      </div>
-                    )}
-
-                    {formData.sendCredentialsTo === "print" && (
-                      <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
-                        <p className="text-sm text-purple-700">
-                          📄 Credentials will be available for printing after student creation. You can manually deliver
-                          them to the student.
-                        </p>
-                      </div>
-                    )}
-                  </div>
                 </div>
 
                 <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
@@ -1165,7 +1234,9 @@ export function StudentsSection() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{students.length}</div>
-            <p className="text-xs text-white/70">Registered students in the system</p>
+            <p className="text-xs text-white/70">
+              {connectionStatus === "connected" ? "Students in database" : "Sample students (demo mode)"}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -1508,11 +1579,9 @@ export function StudentsSection() {
                       {editImagePreview ? (
                         <AvatarImage src={editImagePreview || "/placeholder.svg"} alt="Preview" />
                       ) : (
-                        <>
-                          <AvatarFallback>
-                            <User className="h-12 w-12 text-gray-400" />
-                          </AvatarFallback>
-                        </>
+                        <AvatarFallback>
+                          <User className="h-12 w-12 text-gray-400" />
+                        </AvatarFallback>
                       )}
                     </Avatar>
                     {editImagePreview && (
@@ -1645,7 +1714,7 @@ export function StudentsSection() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="editClass">Class *</Label>
-                    <Select value={editFormData.class} onChange={(value) => handleEditInputChange("class", value)}>
+                    <Select value={editFormData.class} onValueChange={(value) => handleEditInputChange("class", value)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select class" />
                       </SelectTrigger>
@@ -1669,7 +1738,10 @@ export function StudentsSection() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="editSection">Section *</Label>
-                    <Select value={editFormData.section} onChange={(value) => handleEditInputChange("section", value)}>
+                    <Select
+                      value={editFormData.section}
+                      onValueChange={(value) => handleEditInputChange("section", value)}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select section" />
                       </SelectTrigger>
