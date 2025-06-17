@@ -21,19 +21,30 @@ import { SettingsSection } from "./sections/settings-section"
 import { ResultsSection } from "./sections/results-section"
 import ExamManagement from "../exams/exam-management"
 import { UploadsSection } from "./sections/uploads-section"
-
+import { useAuth } from "@/contexts/auth-context"
+import { useRouter } from "next/navigation"
 
 const Dashboard: React.FC = () => {
+  const { user } = useAuth()
+  const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeSection, setActiveSection] = useState("dashboard")
   const [previousSection, setPreviousSection] = useState("dashboard")
 
-  // Track previous section when active section changes
+  // Redirect based on user type
   useEffect(() => {
-    if (activeSection !== "dashboard") {
-      setPreviousSection(activeSection)
+    if (user) {
+      if (user.userType === "teacher") {
+        router.push("/teacher-dashboard")
+        return
+      }
+      if (user.userType === "student") {
+        router.push("/student-dashboard")
+        return
+      }
+      // Admin and other types stay on main dashboard
     }
-  }, [activeSection])
+  }, [user, router])
 
   const renderActiveSection = () => {
     switch (activeSection) {

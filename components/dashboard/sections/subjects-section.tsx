@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -21,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { supabase } from "@/lib/supabase"
 
 export function SubjectsSection() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -28,6 +29,12 @@ export function SubjectsSection() {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedSubject, setSelectedSubject] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingSubjects, setIsLoadingSubjects] = useState(true)
+  const [isLoadingTeachers, setIsLoadingTeachers] = useState(true)
+  const [teachers, setTeachers] = useState([])
+  const [isAddingNewDepartment, setIsAddingNewDepartment] = useState(false)
+  const [newDepartmentName, setNewDepartmentName] = useState("")
 
   const [formData, setFormData] = useState({
     name: "",
@@ -37,35 +44,7 @@ export function SubjectsSection() {
     department: "",
   })
 
-  const [subjects, setSubjects] = useState([
-    {
-      id: 1,
-      name: "Mathematics",
-      code: "MATH101",
-      department: "Mathematics",
-      teacher: "Dr. Sarah Johnson",
-      classes: ["Grade 10A", "Grade 10B"],
-      description: "Core mathematics curriculum covering algebra, geometry, and basic calculus.",
-    },
-    {
-      id: 2,
-      name: "English Literature",
-      code: "ENG101",
-      department: "Languages",
-      teacher: "Mr. David Wilson",
-      classes: ["Grade 9A", "Grade 10B"],
-      description: "Study of classic and contemporary literature with focus on critical analysis.",
-    },
-    {
-      id: 3,
-      name: "Physics",
-      code: "PHY101",
-      department: "Science",
-      teacher: "Dr. Sarah Johnson",
-      classes: ["Grade 11A", "Grade 11B"],
-      description: "Introduction to mechanics, thermodynamics, and basic quantum physics.",
-    },
-  ])
+  const [subjects, setSubjects] = useState([])
 
   const [classCategories] = useState([
     {
@@ -82,62 +61,132 @@ export function SubjectsSection() {
     },
   ])
 
-  // Get unique departments
-  const departments = Array.from(new Set(subjects.map((subject) => subject.department)))
-
-  const handleAddSubject = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-
-    const newSubject = {
-      id: subjects.length + 1,
-      name: formData.name,
-      code: formData.code,
-      department: formData.department,
-      teacher: formData.teacher,
-      classes: [formData.class],
-      description: "",
-    }
-
-    setSubjects([...subjects, newSubject])
-    setIsCreateDialogOpen(false)
-    setFormData({
-      name: "",
-      code: "",
-      class: "",
-      teacher: "",
-      department: "",
-    })
+  // Get unique departments from existing subjects
+  const getUniqueDepartments = () => {
+    const departments = Array.from(new Set(subjects.map((subject) => subject.department).filter(Boolean)))
+    return departments.sort()
   }
 
-  const handleDeleteSubject = () => {
-    if (selectedSubject) {
-      setSubjects(subjects.filter((subject) => subject.id !== selectedSubject.id))
-      setIsDeleteDialogOpen(false)
-      setSelectedSubject(null)
+  const availableDepartments = getUniqueDepartments()
+
+  // Load teachers from database
+  const loadTeachers = async () => {
+    try {
+      setIsLoadingTeachers(true)
+      const { data, error } = await supabase
+        .from("teachers")
+        .select("id, first_name, last_name, employee_id, department")
+        .eq("status", "Active")
+        .order("first_name", { ascending: true })
+
+      if (error) {
+        console.error("Error loading teachers:", error)
+        return
+      }
+
+      if (data) {
+        const formattedTeachers = data.map((teacher) => ({
+          id: teacher.id,
+          name: `${teacher.first_name} ${teacher.last_name}`,
+          employeeId: teacher.employee_id,
+          department: teacher.department,
+        }))
+        setTeachers(formattedTeachers)
+      }
+    } catch (error) {
+      console.error("Error loading teachers:", error)
+    } finally {
+      setIsLoadingTeachers(false)
     }
   }
 
-  const handleEditSubject = (e: React.FormEvent<HTMLFormElement>) => {
+  // Load subjects from database
+  const loadSubjects = async () => {
+    try {
+      setIsLoadingSubjects(true)
+      const { data, error } = await supabase.from("subjects").select("*").order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Error loading subjects:", error)
+        return
+      }
+
+      if (data) {
+        const formattedSubjects = data.map((subject) => ({
+          id: subject.id,
+          name: subject.name,
+          code: subject.code,
+          department: subject.department,
+          teacher: subject.teacher_name || "Unassigned",
+          classes: [subject.target_class],
+          description: subject.description || "",
+          status: subject.status,
+        }))
+        setSubjects(formattedSubjects)
+      }
+    } catch (error) {
+      console.error("Error loading subjects:", error)
+    } finally {
+      setIsLoadingSubjects(false)
+    }
+  }
+
+  // Load data on component mount
+  useEffect(() => {
+    loadTeachers()
+    loadSubjects()
+  }, [])
+
+  // Generate subject ID
+  const generateSubjectId = () => {
+    const nextNumber = subjects.length + 1
+    return `SUBJ${nextNumber.toString().padStart(3, "0")}`
+  }
+
+  const handleAddSubject = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    setIsLoading(true)
 
-    if (selectedSubject) {
-      const updatedSubjects = subjects.map((subject) => {
-        if (subject.id === selectedSubject.id) {
-          return {
-            ...subject,
-            name: formData.name,
-            code: formData.code,
-            department: formData.department,
-            teacher: formData.teacher,
-            classes: [formData.class],
-          }
-        }
-        return subject
-      })
+    try {
+      // Find selected teacher details
+      const selectedTeacher = teachers.find((t) => t.name === formData.teacher)
 
-      setSubjects(updatedSubjects)
-      setIsEditDialogOpen(false)
-      setSelectedSubject(null)
+      // Generate subject ID
+      const subjectId = generateSubjectId()
+
+      // Prepare subject data for database
+      const subjectData = {
+        subject_id: subjectId,
+        name: formData.name,
+        code: formData.code,
+        department: formData.department,
+        target_class: formData.class,
+        teacher_id: selectedTeacher?.id || null,
+        teacher_name: formData.teacher === "unassigned" ? null : formData.teacher,
+        description: "",
+        status: "Active",
+      }
+
+      // Insert subject into database
+      const { data, error } = await supabase.from("subjects").insert([subjectData]).select().single()
+
+      if (error) {
+        console.error("Error adding subject:", error)
+        alert(`Error adding subject: ${error.message}`)
+        return
+      }
+
+      // Show success message
+      alert(
+        `Subject added successfully!\n\nSubject ID: ${subjectId}\nSubject: ${formData.name}\nCode: ${formData.code}`,
+      )
+
+      // Reload subjects from database
+      await loadSubjects()
+
+      setIsCreateDialogOpen(false)
+
+      // Reset form
       setFormData({
         name: "",
         code: "",
@@ -145,6 +194,85 @@ export function SubjectsSection() {
         teacher: "",
         department: "",
       })
+      setIsAddingNewDepartment(false)
+      setNewDepartmentName("")
+    } catch (error) {
+      console.error("Error adding subject:", error)
+      alert("Failed to add subject. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDeleteSubject = async () => {
+    if (selectedSubject) {
+      try {
+        const { error } = await supabase.from("subjects").delete().eq("id", selectedSubject.id)
+
+        if (error) {
+          console.error("Error deleting subject:", error)
+          alert(`Error deleting subject: ${error.message}`)
+          return
+        }
+
+        // Reload subjects
+        await loadSubjects()
+
+        setIsDeleteDialogOpen(false)
+        setSelectedSubject(null)
+      } catch (error) {
+        console.error("Error deleting subject:", error)
+        alert("Failed to delete subject. Please try again.")
+      }
+    }
+  }
+
+  const handleEditSubject = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setIsLoading(true)
+
+    try {
+      if (selectedSubject) {
+        // Find selected teacher details
+        const selectedTeacher = teachers.find((t) => t.name === formData.teacher)
+
+        const updateData = {
+          name: formData.name,
+          code: formData.code,
+          department: formData.department,
+          target_class: formData.class,
+          teacher_id: selectedTeacher?.id || null,
+          teacher_name: formData.teacher === "unassigned" ? null : formData.teacher,
+        }
+
+        const { error } = await supabase.from("subjects").update(updateData).eq("id", selectedSubject.id)
+
+        if (error) {
+          console.error("Error updating subject:", error)
+          alert(`Error updating subject: ${error.message}`)
+          return
+        }
+
+        // Reload subjects
+        await loadSubjects()
+
+        setIsEditDialogOpen(false)
+        setSelectedSubject(null)
+        setFormData({
+          name: "",
+          code: "",
+          class: "",
+          teacher: "",
+          department: "",
+        })
+        setIsAddingNewDepartment(false)
+        setNewDepartmentName("")
+      }
+    } catch (error) {
+      console.error("Error updating subject:", error)
+      alert("Failed to update subject. Please try again.")
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -169,6 +297,9 @@ export function SubjectsSection() {
     setSelectedSubject(subject)
     setIsDeleteDialogOpen(true)
   }
+
+  // Get unique departments from subjects
+  const departments = Array.from(new Set(subjects.map((subject) => subject.department).filter(Boolean)))
 
   return (
     <div className="space-y-6">
@@ -220,19 +351,50 @@ export function SubjectsSection() {
 
                 <div className="space-y-2">
                   <Label htmlFor="subject-department">Department *</Label>
-                  <Input
-                    id="subject-department"
+                  <Select
                     name="subject-department"
-                    placeholder="e.g. Science, Mathematics, Languages"
-                    className="w-full"
                     required
                     value={formData.department}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, department: e.target.value }))}
-                  />
-                  <p className="text-xs text-gray-500">
-                    Enter the department name (will be used for teacher assignment)
-                  </p>
+                    onValueChange={(value) => {
+                      setFormData((prev) => ({ ...prev, department: value }))
+                      setIsAddingNewDepartment(value === "new-department")
+                      if (value !== "new-department") {
+                        setNewDepartmentName("")
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableDepartments.map((dept) => (
+                        <SelectItem key={dept} value={dept}>
+                          {dept}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="new-department">+ Add New Department</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">Select existing department or add new one</p>
                 </div>
+
+                {/* Show input for new department */}
+                {isAddingNewDepartment && (
+                  <div className="space-y-2">
+                    <Label htmlFor="new-department-name">New Department Name *</Label>
+                    <Input
+                      id="new-department-name"
+                      placeholder="e.g. Computer Science, Arts"
+                      className="w-full"
+                      required
+                      value={newDepartmentName}
+                      onChange={(e) => {
+                        setNewDepartmentName(e.target.value)
+                        setFormData((prev) => ({ ...prev, department: e.target.value }))
+                      }}
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="subject-class">Target Class *</Label>
@@ -273,15 +435,21 @@ export function SubjectsSection() {
                     onValueChange={(value) => setFormData((prev) => ({ ...prev, teacher: value }))}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select teacher" />
+                      <SelectValue placeholder={isLoadingTeachers ? "Loading teachers..." : "Select teacher"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Dr. Sarah Johnson">Dr. Sarah Johnson</SelectItem>
-                      <SelectItem value="Mr. David Wilson">Mr. David Wilson</SelectItem>
-                      <SelectItem value="Mrs. Emily Brown">Mrs. Emily Brown</SelectItem>
-                      <SelectItem value="Mr. Michael Davis">Mr. Michael Davis</SelectItem>
+                      <SelectItem value="unassigned">No Teacher Assigned</SelectItem>
+                      {teachers.map((teacher) => (
+                        <SelectItem key={teacher.id} value={teacher.name}>
+                          <div className="flex items-center justify-between w-full">
+                            <span>{teacher.name}</span>
+                            <span className="text-xs text-gray-500 ml-2">({teacher.department})</span>
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  {isLoadingTeachers && <p className="text-xs text-gray-500">Loading teachers from database...</p>}
                 </div>
               </div>
               <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
@@ -293,8 +461,8 @@ export function SubjectsSection() {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" className="w-full sm:w-auto">
-                  Add Subject
+                <Button type="submit" className="w-full sm:w-auto" disabled={isLoading}>
+                  {isLoading ? "Adding Subject..." : "Add Subject"}
                 </Button>
               </DialogFooter>
             </form>
@@ -333,70 +501,98 @@ export function SubjectsSection() {
           <CardDescription>View and manage academic subjects</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Subject</TableHead>
-                <TableHead>Code</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Teacher</TableHead>
-                <TableHead>Classes</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {subjects.map((subject) => (
-                <TableRow key={subject.id}>
-                  <TableCell className="font-medium">{subject.name}</TableCell>
-                  <TableCell>{subject.code}</TableCell>
-                  <TableCell>{subject.department}</TableCell>
-                  <TableCell>{subject.teacher}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {subject.classes.map((cls, index) => {
-                        // Define colors for different class types
-                        const getClassColor = (className: string) => {
-                          if (className.startsWith("JSS")) {
-                            return "bg-blue-100 text-blue-800 border-blue-200"
-                          } else if (className.startsWith("SSS")) {
-                            return "bg-green-100 text-green-800 border-green-200"
-                          } else if (className.includes("Grade")) {
-                            return "bg-purple-100 text-purple-800 border-purple-200"
-                          } else {
-                            return "bg-gray-100 text-gray-800 border-gray-200"
-                          }
-                        }
-
-                        return (
-                          <Badge key={index} variant="outline" className={`text-xs ${getClassColor(cls)}`}>
-                            {cls}
-                          </Badge>
-                        )
-                      })}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => openEditDialog(subject)}>
-                        Edit
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => openViewDialog(subject)}>
-                        View
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openDeleteDialog(subject)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </TableCell>
+          {isLoadingSubjects ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-2"></div>
+                <p className="text-gray-600">Loading subjects...</p>
+              </div>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Teacher</TableHead>
+                  <TableHead>Classes</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {subjects.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                      No subjects found. Add your first subject to get started.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  subjects.map((subject) => (
+                    <TableRow key={subject.id}>
+                      <TableCell className="font-medium">{subject.name}</TableCell>
+                      <TableCell>{subject.code}</TableCell>
+                      <TableCell>{subject.department}</TableCell>
+                      <TableCell>
+                        {subject.teacher === "Unassigned" ? (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs bg-yellow-100 text-yellow-800 border-yellow-300"
+                          >
+                            Unassigned
+                          </Badge>
+                        ) : (
+                          subject.teacher
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {subject.classes.map((cls, index) => {
+                            // Define colors for different class types
+                            const getClassColor = (className: string) => {
+                              if (className.startsWith("JSS")) {
+                                return "bg-blue-100 text-blue-800 border-blue-200"
+                              } else if (className.startsWith("SSS")) {
+                                return "bg-green-100 text-green-800 border-green-200"
+                              } else if (className.includes("Grade")) {
+                                return "bg-purple-100 text-purple-800 border-purple-200"
+                              } else {
+                                return "bg-gray-100 text-gray-800 border-gray-200"
+                              }
+                            }
+
+                            return (
+                              <Badge key={index} variant="outline" className={`text-xs ${getClassColor(cls)}`}>
+                                {cls}
+                              </Badge>
+                            )
+                          })}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+                          <Button variant="outline" size="sm" onClick={() => openEditDialog(subject)}>
+                            Edit
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => openViewDialog(subject)}>
+                            View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openDeleteDialog(subject)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -502,17 +698,51 @@ export function SubjectsSection() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-subject-department">Department *</Label>
-                <Input
-                  id="edit-subject-department"
-                  name="edit-subject-department"
-                  placeholder="e.g. Science, Mathematics, Languages"
-                  className="w-full"
+                <Label htmlFor="subject-department">Department *</Label>
+                <Select
+                  name="subject-department"
                   required
                   value={formData.department}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, department: e.target.value }))}
-                />
+                  onValueChange={(value) => {
+                    setFormData((prev) => ({ ...prev, department: value }))
+                    setIsAddingNewDepartment(value === "new-department")
+                    if (value !== "new-department") {
+                      setNewDepartmentName("")
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableDepartments.map((dept) => (
+                      <SelectItem key={dept} value={dept}>
+                        {dept}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="new-department">+ Add New Department</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500">Select existing department or add new one</p>
               </div>
+
+              {/* Show input for new department in edit dialog */}
+              {isAddingNewDepartment && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-new-department-name">New Department Name *</Label>
+                  <Input
+                    id="edit-new-department-name"
+                    placeholder="e.g. Computer Science, Arts"
+                    className="w-full"
+                    required
+                    value={newDepartmentName}
+                    onChange={(e) => {
+                      setNewDepartmentName(e.target.value)
+                      setFormData((prev) => ({ ...prev, department: e.target.value }))
+                    }}
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="edit-subject-class">Target Class *</Label>
@@ -556,10 +786,15 @@ export function SubjectsSection() {
                     <SelectValue placeholder="Select teacher" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Dr. Sarah Johnson">Dr. Sarah Johnson</SelectItem>
-                    <SelectItem value="Mr. David Wilson">Mr. David Wilson</SelectItem>
-                    <SelectItem value="Mrs. Emily Brown">Mrs. Emily Brown</SelectItem>
-                    <SelectItem value="Mr. Michael Davis">Mr. Michael Davis</SelectItem>
+                    <SelectItem value="unassigned">No Teacher Assigned</SelectItem>
+                    {teachers.map((teacher) => (
+                      <SelectItem key={teacher.id} value={teacher.name}>
+                        <div className="flex items-center justify-between w-full">
+                          <span>{teacher.name}</span>
+                          <span className="text-xs text-gray-500 ml-2">({teacher.department})</span>
+                        </div>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -573,8 +808,8 @@ export function SubjectsSection() {
               >
                 Cancel
               </Button>
-              <Button type="submit" className="w-full sm:w-auto">
-                Save Changes
+              <Button type="submit" className="w-full sm:w-auto" disabled={isLoading}>
+                {isLoading ? "Saving Changes..." : "Save Changes"}
               </Button>
             </DialogFooter>
           </form>

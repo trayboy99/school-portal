@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase"
 
 interface User {
   id: string
@@ -10,6 +11,10 @@ interface User {
   firstName: string
   lastName: string
   userType: "student" | "teacher" | "parent" | "admin"
+  dbId?: number // Database ID for the specific user type
+  department?: string // For teachers
+  class?: string // For students
+  phone?: string
 }
 
 interface AuthContextType {
@@ -30,7 +35,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Check if user is logged in on app start
     const savedUser = localStorage.getItem("user")
     if (savedUser) {
-      setUser(JSON.parse(savedUser))
+      try {
+        setUser(JSON.parse(savedUser))
+      } catch (error) {
+        console.error("Error parsing saved user:", error)
+        localStorage.removeItem("user")
+      }
     }
     setIsLoading(false)
   }, [])
@@ -39,29 +49,93 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true)
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Mock authentication - in real app, this would be an API call
+      // First check if it's an admin login
       if (username === "admin" && password === "password") {
         const userData: User = {
-          id: "1",
+          id: "admin-1",
           username: "admin",
           email: "admin@westminster.edu",
           firstName: "Admin",
           lastName: "User",
           userType: "admin",
         }
-
         setUser(userData)
         localStorage.setItem("user", JSON.stringify(userData))
         setIsLoading(false)
         return true
       }
 
+      // Check teachers table
+      try {
+        const { data: teacherData, error: teacherError } = await supabase
+          .from("teachers")
+          .select("*")
+          .eq("email", username)
+          .eq("status", "Active")
+          .single()
+
+        if (!teacherError && teacherData) {
+          // Simple password check (replace with proper authentication)
+          if (password === "teacher123" || password === "password") {
+            const userData: User = {
+              id: `teacher-${teacherData.id}`,
+              username: teacherData.email,
+              email: teacherData.email,
+              firstName: teacherData.first_name,
+              lastName: teacherData.surname,
+              userType: "teacher",
+              dbId: teacherData.id,
+              department: teacherData.department,
+              phone: teacherData.phone,
+            }
+            setUser(userData)
+            localStorage.setItem("user", JSON.stringify(userData))
+            setIsLoading(false)
+            return true
+          }
+        }
+      } catch (error) {
+        console.log("Teacher lookup failed, trying student...")
+      }
+
+      // Check students table
+      try {
+        const { data: studentData, error: studentError } = await supabase
+          .from("students")
+          .select("*")
+          .eq("email", username)
+          .eq("status", "Active")
+          .single()
+
+        if (!studentError && studentData) {
+          // Simple password check (replace with proper authentication)
+          if (password === "student123" || password === "password") {
+            const userData: User = {
+              id: `student-${studentData.id}`,
+              username: studentData.email,
+              email: studentData.email,
+              firstName: studentData.first_name,
+              lastName: studentData.surname,
+              userType: "student",
+              dbId: studentData.id,
+              class: studentData.class,
+              phone: studentData.phone,
+            }
+            setUser(userData)
+            localStorage.setItem("user", JSON.stringify(userData))
+            setIsLoading(false)
+            return true
+          }
+        }
+      } catch (error) {
+        console.log("Student lookup failed")
+      }
+
+      // If no match found
       setIsLoading(false)
       return false
     } catch (error) {
+      console.error("Login error:", error)
       setIsLoading(false)
       return false
     }

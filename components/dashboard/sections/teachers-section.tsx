@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,64 +22,98 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { supabase } from "@/lib/supabase"
 
 export function TeachersSection() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [teachers, setTeachers] = useState([
-    {
-      id: 1,
-      name: "Dr. Sarah Johnson",
-      employeeId: "EMP001",
-      email: "sarah.johnson@westminster.edu",
-      phone: "+234 801 111 2222",
-      subjects: ["Mathematics", "Physics"], // These would come from subjects table assignments
-      experience: "8 years",
-      status: "Active",
-      avatar: "/placeholder.svg?height=32&width=32",
-      department: "Science",
-      qualification: "PhD in Mathematics",
-      hireDate: "2020-01-15",
-      employmentType: "Full-time",
-      salary: "₦500,000",
-    },
-    {
-      id: 2,
-      name: "Mr. David Wilson",
-      employeeId: "EMP002",
-      email: "david.wilson@westminster.edu",
-      phone: "+234 802 222 3333",
-      subjects: ["English Literature"], // These would come from subjects table assignments
-      experience: "12 years",
-      status: "Active",
-      avatar: "/placeholder.svg?height=32&width=32",
-      department: "Languages",
-      qualification: "MA in English Literature",
-      hireDate: "2018-03-20",
-      employmentType: "Full-time",
-      salary: "₦450,000",
-    },
-    {
-      id: 3,
-      name: "Mrs. Emily Brown",
-      employeeId: "EMP003",
-      email: "emily.brown@westminster.edu",
-      phone: "+234 803 333 4444",
-      subjects: [], // No subjects assigned yet - will show "pending"
-      experience: "6 years",
-      status: "On Leave",
-      avatar: "/placeholder.svg?height=32&width=32",
-      department: "Science",
-      qualification: "MSc in Chemistry",
-      hireDate: "2021-08-10",
-      employmentType: "Full-time",
-      salary: "₦420,000",
-    },
-  ])
+  const [teachers, setTeachers] = useState([])
+  const [isLoadingTeachers, setIsLoadingTeachers] = useState(true)
+  const [loadError, setLoadError] = useState(null)
+
+  // Load teachers from database
+  const loadTeachers = async () => {
+    try {
+      setIsLoadingTeachers(true)
+      setLoadError(null)
+
+      const { data, error } = await supabase.from("teachers").select("*").order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("Error loading teachers:", error)
+        setLoadError(error.message)
+        return
+      }
+
+      if (data) {
+        // Transform database data to match component format
+        const transformedTeachers = data.map((teacher) => ({
+          id: teacher.id,
+          name: `${teacher.first_name} ${teacher.last_name}`,
+          employeeId: teacher.employee_id,
+          email: teacher.email,
+          phone: teacher.phone,
+          subjects: teacher.subjects || [],
+          experience: teacher.experience,
+          status: teacher.status,
+          avatar: teacher.avatar || "/placeholder.svg?height=32&width=32",
+          department: teacher.department,
+          qualification: teacher.qualification,
+          hireDate: teacher.hire_date,
+          employmentType: teacher.employment_type,
+          salary: teacher.salary,
+        }))
+
+        setTeachers(transformedTeachers)
+      }
+    } catch (error) {
+      console.error("Error loading teachers:", error)
+      setLoadError("Failed to load teachers")
+    } finally {
+      setIsLoadingTeachers(false)
+    }
+  }
+
+  // Load subjects and group by department
+  const [allSubjects, setAllSubjects] = useState([])
+
+  const loadSubjectsForDepartments = async () => {
+    try {
+      const { data, error } = await supabase.from("subjects").select("name, department").eq("status", "Active")
+      if (data) {
+        setAllSubjects(data)
+      }
+    } catch (error) {
+      console.error("Error loading subjects for departments:", error)
+    }
+  }
+
+  // Load teachers on component mount
+  useEffect(() => {
+    loadTeachers()
+    loadSubjectsForDepartments()
+  }, [])
+
+  // Dynamic function that groups actual subjects by department from database
+  const getDepartmentsFromSubjects = () => {
+    const departmentSubjects: { [key: string]: string[] } = {}
+
+    // Group subjects by department from database
+    allSubjects.forEach((subject) => {
+      if (!departmentSubjects[subject.department]) {
+        departmentSubjects[subject.department] = []
+      }
+      departmentSubjects[subject.department].push(subject.name)
+    })
+
+    return departmentSubjects
+  }
+
+  const departmentSubjects = getDepartmentsFromSubjects()
 
   // Sample subjects data that would come from the subjects section
   // In a real app, this would be shared state or fetched from the same data source
-  const [allSubjects] = useState([
+  const [allSubjectsSample] = useState([
     {
       id: 1,
       name: "Mathematics",
@@ -148,6 +182,7 @@ export function TeachersSection() {
     },
   ])
 
+  const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -168,46 +203,13 @@ export function TeachersSection() {
     customUsername: "",
     customPassword: "",
     sendCredentialsTo: "",
+    photo: "", // Add this new field
   })
 
   const generateEmployeeId = () => {
     const nextNumber = teachers.length + 1
     return `EMP${nextNumber.toString().padStart(3, "0")}`
   }
-
-  // Dynamic function that groups actual subjects by department
-  const getDepartmentsFromSubjects = () => {
-    const departmentSubjects: { [key: string]: string[] } = {}
-
-    // Group subjects by department
-    allSubjects.forEach((subject) => {
-      if (!departmentSubjects[subject.department]) {
-        departmentSubjects[subject.department] = []
-      }
-      departmentSubjects[subject.department].push(subject.name)
-    })
-
-    // Add empty departments that might not have subjects yet
-    const allDepartments = [
-      "Science",
-      "Mathematics",
-      "Languages",
-      "Social Studies",
-      "Arts",
-      "Technology",
-      "Physical Education",
-    ]
-
-    allDepartments.forEach((dept) => {
-      if (!departmentSubjects[dept]) {
-        departmentSubjects[dept] = []
-      }
-    })
-
-    return departmentSubjects
-  }
-
-  const departmentSubjects = getDepartmentsFromSubjects()
 
   const handleInputChange = (field: string, value: string | string[]) => {
     setFormData((prev) => ({
@@ -216,94 +218,122 @@ export function TeachersSection() {
     }))
   }
 
-  const handleAddTeacher = (e: React.FormEvent) => {
+  const handleAddTeacher = async (e: React.FormEvent) => {
     e.preventDefault()
+    setIsLoading(true)
 
-    const newTeacher = {
-      id: teachers.length + 1,
-      name: `${formData.firstName} ${formData.lastName}`,
-      employeeId: generateEmployeeId(),
-      email: formData.email,
-      phone: formData.phone,
-      subjects: [], // New teachers start with no subjects assigned
-      experience: formData.experience,
-      status: "Active",
-      avatar: "/placeholder.svg?height=32&width=32",
-      department: formData.department,
-      qualification: formData.qualification,
-      hireDate: formData.hireDate,
-      employmentType: formData.employmentType,
-      salary: formData.salary,
-    }
+    try {
+      // Generate employee ID
+      const employeeId = generateEmployeeId()
 
-    // Generate credentials based on selected method
-    let credentials: {
-      username?: string
-      password?: string
-      mustChangePassword?: boolean
-      setupToken?: string
-      setupExpiry?: number
-    } = {}
-
-    if (formData.credentialMethod === "auto-generate") {
-      const username = `${formData.firstName.toLowerCase()}.${formData.lastName.toLowerCase()}.teacher`
-      const password = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8).toUpperCase()
-      credentials = { username, password, mustChangePassword: true }
-    } else if (formData.credentialMethod === "custom") {
-      credentials = {
-        username: formData.customUsername,
-        password: formData.customPassword,
-        mustChangePassword: true,
+      // Prepare teacher data for database
+      const teacherData = {
+        employee_id: employeeId,
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        date_of_birth: formData.dateOfBirth || null,
+        gender: formData.gender || null,
+        home_address: formData.address || null,
+        qualification: formData.qualification,
+        experience: formData.experience,
+        department: formData.department,
+        employment_type: formData.employmentType,
+        hire_date: formData.hireDate,
+        salary: formData.salary || null,
+        emergency_contact: formData.emergencyContact || null,
+        emergency_phone: formData.emergencyPhone || null,
+        avatar: formData.photo || null,
+        credential_method: formData.credentialMethod,
+        custom_username: formData.customUsername || null,
+        custom_password: formData.customPassword || null,
+        send_credentials_to: formData.sendCredentialsTo || null,
+        subjects: [],
+        status: "Active",
       }
-    } else if (formData.credentialMethod === "email-setup") {
-      credentials = { setupToken: Math.random().toString(36), setupExpiry: Date.now() + 24 * 60 * 60 * 1000 }
+
+      // Generate credentials based on selected method
+      let credentials: {
+        username?: string
+        password?: string
+        mustChangePassword?: boolean
+        setupToken?: string
+        setupExpiry?: number
+      } = {}
+
+      if (formData.credentialMethod === "auto-generate") {
+        const username = `${formData.firstName.toLowerCase()}.${formData.lastName.toLowerCase()}.teacher`
+        const password = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8).toUpperCase()
+        credentials = { username, password, mustChangePassword: true }
+        teacherData.username = username
+        teacherData.password_hash = password // In production, this should be hashed
+      } else if (formData.credentialMethod === "custom") {
+        credentials = {
+          username: formData.customUsername,
+          password: formData.customPassword,
+          mustChangePassword: true,
+        }
+        teacherData.username = formData.customUsername
+        teacherData.password_hash = formData.customPassword // In production, this should be hashed
+      } else if (formData.credentialMethod === "email-setup") {
+        credentials = { setupToken: Math.random().toString(36), setupExpiry: Date.now() + 24 * 60 * 60 * 1000 }
+      }
+
+      // Insert teacher into database using client-side supabase
+      const { data, error } = await supabase.from("teachers").insert([teacherData]).select().single()
+
+      if (error) {
+        console.error("Error adding teacher:", error)
+        alert(`Error adding teacher: ${error.message}`)
+        return
+      }
+
+      // Show success message with credentials
+      if (formData.sendCredentialsTo && formData.credentialMethod !== "email-setup") {
+        alert(
+          `Teacher added successfully!\n\nEmployee ID: ${employeeId}\n\nLogin Credentials:\nUsername: ${credentials.username}\nPassword: ${credentials.password}\n\nCredentials sent to: ${formData.sendCredentialsTo}`,
+        )
+      } else if (formData.credentialMethod === "email-setup") {
+        alert(`Teacher added successfully!\n\nEmployee ID: ${employeeId}\n\nSetup link sent to: ${formData.email}`)
+      } else {
+        alert(`Teacher added successfully!\n\nEmployee ID: ${employeeId}`)
+      }
+
+      // Reload teachers from database
+      await loadTeachers()
+
+      setIsAddDialogOpen(false)
+
+      // Reset form
+      setFormData({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phone: "",
+        dateOfBirth: "",
+        gender: "",
+        address: "",
+        qualification: "",
+        experience: "",
+        department: "",
+        employmentType: "",
+        salary: "",
+        hireDate: "",
+        emergencyContact: "",
+        emergencyPhone: "",
+        credentialMethod: "",
+        customUsername: "",
+        customPassword: "",
+        sendCredentialsTo: "",
+        photo: "",
+      })
+    } catch (error) {
+      console.error("Error adding teacher:", error)
+      alert("Failed to add teacher. Please try again.")
+    } finally {
+      setIsLoading(false)
     }
-
-    // Add credentials to teacher object
-    const teacherWithCredentials = { ...newTeacher, credentials }
-
-    // Simulate sending credentials
-    if (formData.sendCredentialsTo && formData.credentialMethod !== "email-setup") {
-      console.log("Sending teacher credentials to:", formData.sendCredentialsTo)
-      console.log("Username:", credentials.username)
-      console.log("Password:", credentials.password)
-
-      alert(
-        `Teacher added successfully!\n\nEmployee ID: ${newTeacher.employeeId}\n\nLogin Credentials:\nUsername: ${credentials.username}\nPassword: ${credentials.password}\n\nCredentials sent to: ${formData.sendCredentialsTo}`,
-      )
-    } else if (formData.credentialMethod === "email-setup") {
-      alert(
-        `Teacher added successfully!\n\nEmployee ID: ${newTeacher.employeeId}\n\nSetup link sent to: ${formData.email}`,
-      )
-    } else {
-      alert(`Teacher added successfully!\n\nEmployee ID: ${newTeacher.employeeId}`)
-    }
-
-    setTeachers((prev) => [...prev, teacherWithCredentials])
-    setIsAddDialogOpen(false)
-
-    // Reset form
-    setFormData({
-      firstName: "",
-      lastName: "",
-      email: "",
-      phone: "",
-      dateOfBirth: "",
-      gender: "",
-      address: "",
-      qualification: "",
-      experience: "",
-      department: "",
-      employmentType: "",
-      salary: "",
-      hireDate: "",
-      emergencyContact: "",
-      emergencyPhone: "",
-      credentialMethod: "",
-      customUsername: "",
-      customPassword: "",
-      sendCredentialsTo: "",
-    })
   }
 
   // Function to render subjects column based on assignment status
@@ -357,6 +387,46 @@ export function TeachersSection() {
                   {/* Personal Information */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold border-b pb-2">Personal Information</h3>
+
+                    {/* Photo Upload Section */}
+                    <div className="space-y-2">
+                      <Label htmlFor="photo">Teacher Photo</Label>
+                      <div className="flex items-center space-x-4">
+                        <div className="w-20 h-20 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden">
+                          {formData.photo ? (
+                            <img
+                              src={formData.photo || "/placeholder.svg"}
+                              alt="Teacher preview"
+                              className="w-full h-full object-cover rounded-full"
+                            />
+                          ) : (
+                            <div className="text-center">
+                              <Users className="h-8 w-8 text-gray-400 mx-auto" />
+                              <span className="text-xs text-gray-500">Photo</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <Input
+                            id="photo"
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) {
+                                const reader = new FileReader()
+                                reader.onload = (e) => {
+                                  handleInputChange("photo", e.target?.result as string)
+                                }
+                                reader.readAsDataURL(file)
+                              }
+                            }}
+                            className="mb-2"
+                          />
+                          <p className="text-xs text-gray-500">Upload a professional photo (JPG, PNG, max 2MB)</p>
+                        </div>
+                      </div>
+                    </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -501,7 +571,7 @@ export function TeachersSection() {
                             Subjects in {formData.department} Department:
                           </div>
                           <div className="text-sm text-gray-600">
-                            {departmentSubjects[formData.department].length > 0 ? (
+                            {departmentSubjects[formData.department]?.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
                                 {departmentSubjects[formData.department].map((subject, index) => (
                                   <Badge key={index} variant="outline" className="text-xs">
@@ -725,8 +795,8 @@ export function TeachersSection() {
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" className="w-full sm:w-auto">
-                    Add Teacher
+                  <Button type="submit" className="w-full sm:w-auto" disabled={isLoading}>
+                    {isLoading ? "Adding Teacher..." : "Add Teacher"}
                   </Button>
                 </DialogFooter>
               </form>
@@ -804,57 +874,81 @@ export function TeachersSection() {
             </Button>
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Teacher</TableHead>
-                <TableHead>Employee ID</TableHead>
-                <TableHead>Subjects</TableHead>
-                <TableHead>Experience</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {teachers.map((teacher) => (
-                <TableRow key={teacher.id}>
-                  <TableCell>
-                    <div className="flex items-center space-x-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={teacher.avatar || "/placeholder.svg"} alt={teacher.name} />
-                        <AvatarFallback>
-                          {teacher.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-medium">{teacher.name}</div>
-                        <div className="text-sm text-gray-500">{teacher.email}</div>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium">{teacher.employeeId}</TableCell>
-                  <TableCell>{renderSubjectsColumn(teacher)}</TableCell>
-                  <TableCell>{teacher.experience}</TableCell>
-                  <TableCell>
-                    <Badge variant={teacher.status === "Active" ? "default" : "secondary"}>{teacher.status}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex space-x-2">
-                      <Button variant="ghost" size="sm">
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          {isLoadingTeachers ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-2"></div>
+                <p className="text-gray-600">Loading teachers...</p>
+              </div>
+            </div>
+          ) : loadError ? (
+            <div className="text-center py-8">
+              <p className="text-red-600 mb-2">Error loading teachers: {loadError}</p>
+              <Button onClick={loadTeachers} variant="outline">
+                Try Again
+              </Button>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Teacher</TableHead>
+                  <TableHead>Employee ID</TableHead>
+                  <TableHead>Subjects</TableHead>
+                  <TableHead>Experience</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {teachers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                      No teachers found. Add your first teacher to get started.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  teachers.map((teacher) => (
+                    <TableRow key={teacher.id}>
+                      <TableCell>
+                        <div className="flex items-center space-x-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={teacher.avatar || "/placeholder.svg"} alt={teacher.name} />
+                            <AvatarFallback>
+                              {teacher.name
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium">{teacher.name}</div>
+                            <div className="text-sm text-gray-500">{teacher.email}</div>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium">{teacher.employeeId}</TableCell>
+                      <TableCell>{renderSubjectsColumn(teacher)}</TableCell>
+                      <TableCell>{teacher.experience}</TableCell>
+                      <TableCell>
+                        <Badge variant={teacher.status === "Active" ? "default" : "secondary"}>{teacher.status}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+                          <Button variant="ghost" size="sm">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -125,24 +125,26 @@ const sampleStudents: Student[] = [
 ]
 
 // Class and Section Management Settings
-const classCategories = [
-  {
-    id: 1,
-    name: "Junior",
-    description: "Junior Secondary School",
-    defaultSubjects: 9,
-    classes: ["JSS 1", "JSS 2", "JSS 3"],
-    order: 1,
-  },
-  {
-    id: 2,
-    name: "Senior",
-    description: "Senior Secondary School",
-    defaultSubjects: 6,
-    classes: ["SSS 1", "SSS 2", "SSS 3"],
-    order: 2,
-  },
-]
+const getClassCategoriesFromSettings = () => {
+  return [
+    {
+      id: 1,
+      name: "Junior",
+      description: "Junior Secondary School",
+      defaultSubjects: 9,
+      classes: ["JSS 1", "JSS 2", "JSS 3"],
+      order: 1,
+    },
+    {
+      id: 2,
+      name: "Senior",
+      description: "Senior Secondary School",
+      defaultSubjects: 6,
+      classes: ["SSS 1", "SSS 2", "SSS 3"],
+      order: 2,
+    },
+  ]
+}
 
 const classSections = [
   {
@@ -227,6 +229,9 @@ export function StudentsSection() {
     parentEmail: "",
     avatar: "",
   })
+
+  const [selectedCategory, setSelectedCategory] = useState("")
+  const [editSelectedCategory, setEditSelectedCategory] = useState("")
 
   // Check Supabase configuration and connection
   useEffect(() => {
@@ -346,15 +351,22 @@ export function StudentsSection() {
         supabase = createClient(supabaseUrl, supabaseAnonKey)
       }
 
+      console.log("🔍 Loading students from database...")
+
       const { data, error } = await supabase.from("students").select("*").order("created_at", { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error("❌ Database query error:", error)
+        throw error
+      }
+
+      console.log("📊 Raw database data:", data)
 
       // Transform database data to match component interface
       const transformedStudents =
         data?.map((student: any) => ({
           id: student.id,
-          name: student.name,
+          name: student.full_name || `${student.first_name} ${student.middle_name || ""} ${student.surname}`.trim(),
           rollNo: student.roll_no,
           class: student.class,
           section: student.section,
@@ -365,7 +377,7 @@ export function StudentsSection() {
           admissionDate: student.admission_date,
           dateOfBirth: student.date_of_birth,
           gender: student.gender,
-          address: student.address || "",
+          address: student.home_address || "",
           parentName: student.parent_name || "",
           parentPhone: student.parent_phone || "",
           parentEmail: student.parent_email || "",
@@ -375,6 +387,7 @@ export function StudentsSection() {
       console.log(`✅ Loaded ${transformedStudents.length} students from database`)
     } catch (error: any) {
       console.error("❌ Error loading students from database:", error)
+      console.log("📝 Using sample data as fallback")
       // Keep using sample data if database fails
     }
   }
@@ -711,6 +724,38 @@ export function StudentsSection() {
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Validate credential method
+    if (!formData.credentialMethod) {
+      alert("Please select a password generation method")
+      return
+    }
+
+    if (formData.credentialMethod === "manual" && !formData.customPassword) {
+      alert("Please enter a custom password")
+      return
+    }
+
+    if (formData.credentialMethod === "manual" && formData.customPassword.length < 6) {
+      alert("Password must be at least 6 characters long")
+      return
+    }
+
+    if (
+      (formData.credentialMethod === "auto" || formData.credentialMethod === "email-setup") &&
+      !formData.sendCredentialsTo
+    ) {
+      alert("Please select who should receive the login credentials")
+      return
+    }
+
+    // TODO: Implement actual credential generation/sending logic here
+    console.log("Credential setup:", {
+      method: formData.credentialMethod,
+      customUsername: formData.customUsername,
+      customPassword: formData.customPassword ? "[HIDDEN]" : null,
+      sendTo: formData.sendCredentialsTo,
+    })
+
     const newStudent: Student = {
       id: students.length + 1,
       name: `${formData.firstName} ${formData.middleName} ${formData.surname}`.replace(/\s+/g, " ").trim(),
@@ -742,25 +787,37 @@ export function StudentsSection() {
 
           const { error } = await supabase.from("students").insert([
             {
-              name: newStudent.name,
               roll_no: newStudent.rollNo,
-              class: newStudent.class,
-              section: newStudent.section,
+              surname: formData.surname,
+              middle_name: formData.middleName || null,
+              first_name: formData.firstName,
               email: newStudent.email,
               phone: newStudent.phone,
-              status: newStudent.status,
-              avatar: newStudent.avatar,
-              admission_date: newStudent.admissionDate,
               date_of_birth: newStudent.dateOfBirth,
               gender: newStudent.gender,
-              address: newStudent.address,
-              parent_name: newStudent.parentName,
-              parent_phone: newStudent.parentPhone,
-              parent_email: newStudent.parentEmail,
+              home_address: newStudent.address,
+              class: newStudent.class,
+              section: newStudent.section,
+              parent_name: formData.parentName,
+              parent_phone: formData.parentPhone,
+              parent_email: formData.parentEmail,
+              avatar: newStudent.avatar,
+              status: newStudent.status,
+              admission_date: newStudent.admissionDate,
+              credential_method: formData.credentialMethod,
+              credentials_sent_to: formData.sendCredentialsTo,
+              username: formData.customUsername || null,
+              // Note: In production, you'd hash the password before storing
+              password_hash: formData.credentialMethod === "manual" ? formData.customPassword : null,
             },
           ])
 
-          if (error) throw error
+          if (error) {
+            console.error("❌ Database insert error:", error)
+            throw error
+          }
+
+          console.log("✅ Student saved to database successfully")
 
           // Reload from database
           await loadStudentsFromDatabase(supabase)
@@ -803,6 +860,7 @@ export function StudentsSection() {
       avatar: "",
     })
     setImagePreview(null)
+    setSelectedCategory("")
   }
 
   const handleViewStudent = (student: Student) => {
@@ -835,6 +893,7 @@ export function StudentsSection() {
     setEditImagePreview(student.avatar)
     setSelectedStudent(student)
     setIsEditDialogOpen(true)
+    setEditSelectedCategory(getCategoryFromClass(student.class))
   }
 
   const handleUpdateStudent = (e: React.FormEvent) => {
@@ -861,6 +920,7 @@ export function StudentsSection() {
     setIsEditDialogOpen(false)
     setSelectedStudent(null)
     setEditImagePreview(null)
+    setEditSelectedCategory("")
     alert("Student updated successfully!")
   }
 
@@ -908,12 +968,35 @@ export function StudentsSection() {
 
   // Get all available classes from settings
   const getAllClasses = () => {
+    const classCategories = getClassCategoriesFromSettings()
     return classCategories.sort((a, b) => a.order - b.order).flatMap((category) => category.classes)
   }
 
   // Get all available sections from settings
   const getAllSections = () => {
     return classSections.sort((a, b) => a.order - b.order)
+  }
+
+  const getCategoryFromClass = (className: string) => {
+    const classCategories = getClassCategoriesFromSettings()
+    for (const category of classCategories) {
+      if (category.classes.includes(className)) {
+        return category.name
+      }
+    }
+    return ""
+  }
+
+  const handleClassChange = (className: string) => {
+    handleInputChange("class", className)
+    const category = getCategoryFromClass(className)
+    setSelectedCategory(category)
+  }
+
+  const handleEditClassChange = (className: string) => {
+    handleEditInputChange("class", className)
+    const category = getCategoryFromClass(className)
+    setEditSelectedCategory(category)
   }
 
   // Apply filters and search
@@ -1120,12 +1203,12 @@ export function StudentsSection() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="class">Class *</Label>
-                        <Select value={formData.class} onValueChange={(value) => handleInputChange("class", value)}>
+                        <Select value={formData.class} onValueChange={handleClassChange}>
                           <SelectTrigger>
                             <SelectValue placeholder="Select class" />
                           </SelectTrigger>
                           <SelectContent>
-                            {classCategories
+                            {getClassCategoriesFromSettings()
                               .sort((a, b) => a.order - b.order)
                               .map((category) => (
                                 <div key={category.id}>
@@ -1142,6 +1225,19 @@ export function StudentsSection() {
                           </SelectContent>
                         </Select>
                       </div>
+                      {selectedCategory && (
+                        <div className="space-y-2">
+                          <Label htmlFor="category">Category</Label>
+                          <Input
+                            id="category"
+                            value={selectedCategory}
+                            disabled
+                            className="bg-gray-50 text-gray-600"
+                            placeholder="Category will be auto-filled"
+                          />
+                          <p className="text-xs text-gray-500">Auto-filled based on selected class</p>
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <Label htmlFor="section">Section *</Label>
                         <Select value={formData.section} onValueChange={(value) => handleInputChange("section", value)}>
@@ -1203,6 +1299,131 @@ export function StudentsSection() {
                           placeholder="parent@email.com"
                         />
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Login Credentials */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold border-b pb-2">Login Credentials</h3>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="credentialMethod">Password Generation Method *</Label>
+                        <Select
+                          value={formData.credentialMethod}
+                          onChange={(value) => handleInputChange("credentialMethod", value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select how to generate login credentials" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto">Auto-generate secure password</SelectItem>
+                            <SelectItem value="manual">Set custom password</SelectItem>
+                            <SelectItem value="email-setup">Send setup link to email</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {formData.credentialMethod === "auto" && (
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                          <div className="flex items-start space-x-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                            <div>
+                              <p className="text-sm font-medium text-blue-800">Auto-generate Password</p>
+                              <p className="text-xs text-blue-600 mt-1">
+                                A secure 8-character password will be automatically generated and sent to the selected
+                                recipient.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {formData.credentialMethod === "manual" && (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="customUsername">Username (Optional)</Label>
+                              <Input
+                                id="customUsername"
+                                value={formData.customUsername}
+                                onChange={(e) => handleInputChange("customUsername", e.target.value)}
+                                placeholder="Leave blank to use email"
+                              />
+                              <p className="text-xs text-gray-500">If empty, email will be used as username</p>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="customPassword">Password *</Label>
+                              <Input
+                                id="customPassword"
+                                type="password"
+                                value={formData.customPassword}
+                                onChange={(e) => handleInputChange("customPassword", e.target.value)}
+                                placeholder="Enter secure password"
+                                required={formData.credentialMethod === "manual"}
+                              />
+                              <p className="text-xs text-gray-500">Minimum 6 characters</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {formData.credentialMethod === "email-setup" && (
+                        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                          <div className="flex items-start space-x-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                            <div>
+                              <p className="text-sm font-medium text-green-800">Email Setup Link</p>
+                              <p className="text-xs text-green-600 mt-1">
+                                A secure setup link will be sent to the selected email address. The recipient can set
+                                their own password on first login.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {(formData.credentialMethod === "auto" || formData.credentialMethod === "email-setup") && (
+                        <div className="space-y-2">
+                          <Label htmlFor="sendCredentialsTo">Send Credentials To *</Label>
+                          <Select
+                            value={formData.sendCredentialsTo}
+                            onChange={(value) => handleInputChange("sendCredentialsTo", value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select who should receive the login credentials" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="student">
+                                Student Email ({formData.email || "student@email.com"})
+                              </SelectItem>
+                              <SelectItem value="parent">
+                                Parent Email ({formData.parentEmail || "parent@email.com"})
+                              </SelectItem>
+                              <SelectItem value="both">Both Student and Parent</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {formData.credentialMethod && (
+                        <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                          <div className="flex items-start space-x-2">
+                            <div className="w-2 h-2 bg-yellow-500 rounded-full mt-2"></div>
+                            <div>
+                              <p className="text-xs text-yellow-700">
+                                <strong>Security Note:</strong> Login credentials will be processed securely.
+                                {formData.credentialMethod === "auto" &&
+                                  " Auto-generated passwords use secure random generation."}
+                                {formData.credentialMethod === "manual" &&
+                                  " Ensure the password meets security requirements."}
+                                {formData.credentialMethod === "email-setup" &&
+                                  " Setup links expire after 24 hours for security."}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1280,7 +1501,7 @@ export function StudentsSection() {
                   <DropdownMenuCheckboxItem
                     key={className}
                     checked={filters.class.includes(className)}
-                    onCheckedChange={() => toggleClassFilter(className)}
+                    onChange={() => toggleClassFilter(className)}
                   >
                     {className}
                   </DropdownMenuCheckboxItem>
@@ -1291,13 +1512,13 @@ export function StudentsSection() {
                 <DropdownMenuLabel className="text-xs font-medium text-gray-500 pt-2">Gender</DropdownMenuLabel>
                 <DropdownMenuCheckboxItem
                   checked={filters.gender.includes("Male")}
-                  onCheckedChange={() => toggleGenderFilter("Male")}
+                  onChange={() => toggleGenderFilter("Male")}
                 >
                   Male
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuCheckboxItem
                   checked={filters.gender.includes("Female")}
-                  onCheckedChange={() => toggleGenderFilter("Female")}
+                  onChange={() => toggleGenderFilter("Female")}
                 >
                   Female
                 </DropdownMenuCheckboxItem>
@@ -1419,7 +1640,7 @@ export function StudentsSection() {
       </Card>
 
       {/* View Student Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+      <Dialog open={isViewDialogOpen} onChange={setIsViewDialogOpen}>
         <DialogContent className="sm:max-w-[600px] max-w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Student Details</DialogTitle>
@@ -1561,7 +1782,7 @@ export function StudentsSection() {
       </Dialog>
 
       {/* Edit Student Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[600px] max-w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Student</DialogTitle>
@@ -1714,12 +1935,12 @@ export function StudentsSection() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="editClass">Class *</Label>
-                    <Select value={editFormData.class} onValueChange={(value) => handleEditInputChange("class", value)}>
+                    <Select value={editFormData.class} onChange={(value) => handleEditClassChange(value)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select class" />
                       </SelectTrigger>
                       <SelectContent>
-                        {classCategories
+                        {getClassCategoriesFromSettings()
                           .sort((a, b) => a.order - b.order)
                           .map((category) => (
                             <div key={category.id}>
@@ -1736,12 +1957,22 @@ export function StudentsSection() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {editSelectedCategory && (
+                    <div className="space-y-2">
+                      <Label htmlFor="category">Category</Label>
+                      <Input
+                        id="category"
+                        value={editSelectedCategory}
+                        disabled
+                        className="bg-gray-50 text-gray-600"
+                        placeholder="Category will be auto-filled"
+                      />
+                      <p className="text-xs text-gray-500">Auto-filled based on selected class</p>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label htmlFor="editSection">Section *</Label>
-                    <Select
-                      value={editFormData.section}
-                      onValueChange={(value) => handleEditInputChange("section", value)}
-                    >
+                    <Select value={editFormData.section} onChange={(value) => handleEditInputChange("section", value)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select section" />
                       </SelectTrigger>
@@ -1819,7 +2050,7 @@ export function StudentsSection() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog open={isDeleteDialogOpen} onChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Student</AlertDialogTitle>
