@@ -47,9 +47,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     setIsLoading(true)
+    console.log("Attempting login with:", username)
 
     try {
-      // First check if it's an admin login
+      // Check database users table first (supports both username and email login)
+      try {
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("*")
+          .or(`username.eq.${username},email.eq.${username}`)
+          .eq("status", "Active")
+          .single()
+
+        console.log("Database query result:", { userData, userError })
+
+        if (!userError && userData) {
+          // Check password (in production, use proper password hashing)
+          if (password === userData.password_hash) {
+            const userInfo: User = {
+              id: `user-${userData.id}`,
+              username: userData.username,
+              email: userData.email,
+              firstName: userData.first_name,
+              lastName: userData.last_name,
+              userType: userData.user_type as "student" | "teacher" | "parent" | "admin",
+              dbId: userData.id,
+            }
+            console.log("Login successful:", userInfo)
+            setUser(userInfo)
+            localStorage.setItem("user", JSON.stringify(userInfo))
+            setIsLoading(false)
+            return true
+          } else {
+            console.log("Password mismatch")
+          }
+        }
+      } catch (error) {
+        console.log("Database user lookup failed:", error)
+      }
+
+      // Fallback: Check hardcoded admin
       if (username === "admin" && password === "password") {
         const userData: User = {
           id: "admin-1",
@@ -65,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return true
       }
 
-      // Check teachers table
+      // Fallback: Check teachers table
       try {
         const { data: teacherData, error: teacherError } = await supabase
           .from("teachers")
@@ -75,7 +112,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single()
 
         if (!teacherError && teacherData) {
-          // Simple password check (replace with proper authentication)
           if (password === "teacher123" || password === "password") {
             const userData: User = {
               id: `teacher-${teacherData.id}`,
@@ -95,10 +131,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (error) {
-        console.log("Teacher lookup failed, trying student...")
+        console.log("Teacher lookup failed:", error)
       }
 
-      // Check students table
+      // Fallback: Check students table
       try {
         const { data: studentData, error: studentError } = await supabase
           .from("students")
@@ -108,7 +144,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single()
 
         if (!studentError && studentData) {
-          // Simple password check (replace with proper authentication)
           if (password === "student123" || password === "password") {
             const userData: User = {
               id: `student-${studentData.id}`,
@@ -128,10 +163,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (error) {
-        console.log("Student lookup failed")
+        console.log("Student lookup failed:", error)
       }
 
       // If no match found
+      console.log("No matching user found")
       setIsLoading(false)
       return false
     } catch (error) {
@@ -169,6 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const logout = () => {
+    console.log("Logging out user:", user?.username)
     setUser(null)
     localStorage.removeItem("user")
   }

@@ -35,6 +35,7 @@ export function SubjectsSection() {
   const [teachers, setTeachers] = useState([])
   const [isAddingNewDepartment, setIsAddingNewDepartment] = useState(false)
   const [newDepartmentName, setNewDepartmentName] = useState("")
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     name: "",
@@ -73,28 +74,57 @@ export function SubjectsSection() {
   const loadTeachers = async () => {
     try {
       setIsLoadingTeachers(true)
-      const { data, error } = await supabase
+
+      // First try the expected structure, then fallback to other possible structures
+      let { data, error } = await supabase
         .from("teachers")
-        .select("id, first_name, last_name, employee_id, department")
+        .select("id, first_name, surname, employee_id, department, email, status")
         .eq("status", "Active")
         .order("first_name", { ascending: true })
 
+      // If that fails, try with different column names
+      if (error || !data || data.length === 0) {
+        console.log("Trying alternative teacher table structure...")
+        const { data: altData, error: altError } = await supabase.from("teachers").select("*").eq("status", "Active")
+
+        if (altData && altData.length > 0) {
+          data = altData
+          error = altError
+        }
+      }
+
       if (error) {
         console.error("Error loading teachers:", error)
+        setLoadError(error.message)
         return
       }
 
-      if (data) {
+      if (data && data.length > 0) {
+        console.log("Loaded teachers:", data) // Debug log
+
         const formattedTeachers = data.map((teacher) => ({
           id: teacher.id,
-          name: `${teacher.first_name} ${teacher.last_name}`,
-          employeeId: teacher.employee_id,
-          department: teacher.department,
+          // Handle different possible name structures
+          name:
+            teacher.first_name && teacher.surname
+              ? `${teacher.first_name} ${teacher.surname}`
+              : teacher.first_name && teacher.last_name
+                ? `${teacher.first_name} ${teacher.last_name}`
+                : teacher.name || `Teacher ${teacher.id}`,
+          employeeId: teacher.employee_id || `EMP${teacher.id}`,
+          department: teacher.department || "General",
+          email: teacher.email || "",
         }))
+
+        console.log("Formatted teachers:", formattedTeachers) // Debug log
         setTeachers(formattedTeachers)
+      } else {
+        console.log("No teachers found in database")
+        setLoadError("No teachers found in database")
       }
     } catch (error) {
       console.error("Error loading teachers:", error)
+      setLoadError("Failed to load teachers")
     } finally {
       setIsLoadingTeachers(false)
     }

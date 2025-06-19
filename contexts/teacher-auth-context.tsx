@@ -3,6 +3,7 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/auth-context"
 
 interface Teacher {
   id: string
@@ -29,72 +30,75 @@ interface TeacherAuthContextType {
 const TeacherAuthContext = createContext<TeacherAuthContextType | undefined>(undefined)
 
 export function TeacherAuthProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth() // Get user from main auth context
   const [teacher, setTeacher] = useState<Teacher | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Check if teacher is logged in on app start
-    const savedTeacher = localStorage.getItem("teacher")
-    if (savedTeacher) {
-      setTeacher(JSON.parse(savedTeacher))
+    // When user changes, fetch teacher data if user is a teacher
+    if (user && user.userType === "teacher") {
+      fetchTeacherData(user.email)
+    } else {
+      setTeacher(null)
+      setIsLoading(false)
     }
-    setIsLoading(false)
-  }, [])
+  }, [user])
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const fetchTeacherData = async (email: string) => {
     setIsLoading(true)
+    console.log("Fetching teacher data for email:", email)
 
     try {
-      // Query the teachers table for authentication
-      const { data, error } = await supabase
+      // Get teacher details from teachers table
+      const { data: teacherData, error } = await supabase
         .from("teachers")
         .select("*")
         .eq("email", email)
         .eq("status", "Active")
         .single()
 
-      if (error || !data) {
-        console.error("Teacher login error:", error)
+      console.log("Teacher data from database:", teacherData)
+
+      if (error || !teacherData) {
+        console.error("Error fetching teacher data:", error)
+        setTeacher(null)
         setIsLoading(false)
-        return false
+        return
       }
 
-      // In a real app, you'd verify the password hash here
-      // For now, we'll use a simple check (replace with proper password verification)
-      if (password === "teacher123" || password === "password") {
-        const teacherData: Teacher = {
-          id: data.id.toString(),
-          teacher_id: data.teacher_id,
-          first_name: data.first_name,
-          middle_name: data.middle_name,
-          surname: data.surname,
-          full_name: `${data.first_name} ${data.middle_name || ""} ${data.surname}`.trim(),
-          email: data.email,
-          phone: data.phone || "",
-          department: data.department,
-          subjects: data.subjects || [],
-          classes: data.classes || [],
-          status: data.status,
-        }
-
-        setTeacher(teacherData)
-        localStorage.setItem("teacher", JSON.stringify(teacherData))
-        setIsLoading(false)
-        return true
+      // Convert to teacher object format
+      const teacherObj: Teacher = {
+        id: teacherData.id.toString(),
+        teacher_id: teacherData.teacher_id,
+        first_name: teacherData.first_name,
+        middle_name: teacherData.middle_name,
+        surname: teacherData.surname,
+        full_name: `${teacherData.first_name} ${teacherData.middle_name || ""} ${teacherData.surname}`.trim(),
+        email: teacherData.email,
+        phone: teacherData.phone || "",
+        department: teacherData.department,
+        subjects: teacherData.subjects || [],
+        classes: teacherData.classes || [],
+        status: teacherData.status,
       }
 
-      setIsLoading(false)
-      return false
+      console.log("Converted teacher object:", teacherObj)
+      setTeacher(teacherObj)
     } catch (error) {
-      console.error("Teacher login error:", error)
+      console.error("Error in fetchTeacherData:", error)
+      setTeacher(null)
+    } finally {
       setIsLoading(false)
-      return false
     }
+  }
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    // This is handled by the main auth context now
+    return false
   }
 
   const logout = () => {
     setTeacher(null)
-    localStorage.removeItem("teacher")
   }
 
   return (

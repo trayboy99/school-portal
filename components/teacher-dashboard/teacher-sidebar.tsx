@@ -76,6 +76,36 @@ export function TeacherSidebar({ isOpen, onClose, activeSection, setActiveSectio
       count: null,
     },
     {
+      id: "all-teachers",
+      label: "All Teachers",
+      icon: GraduationCap,
+      count: null,
+    },
+    {
+      id: "class-assigned",
+      label: "Class Assigned",
+      icon: Users,
+      count: null,
+    },
+    {
+      id: "subjects-overview",
+      label: "Subjects Overview",
+      icon: BookOpen,
+      count: null,
+    },
+    {
+      id: "report-comments",
+      label: "Report Comments",
+      icon: MessageSquare,
+      count: null,
+    },
+    {
+      id: "uploads",
+      label: "Uploads",
+      icon: FileText,
+      count: null,
+    },
+    {
       id: "communications",
       label: "Messages",
       icon: MessageSquare,

@@ -12,12 +12,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useAuth } from "@/contexts/auth-context"
+import { useRouter } from "next/navigation"
 
 interface HeaderProps {
   onMenuClick: () => void
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
+  const { user, logout } = useAuth()
+  const router = useRouter()
+
+  const handleLogout = () => {
+    logout()
+    router.push("/login")
+  }
+
   return (
     <header className="bg-white shadow-sm border-b border-gray-200 w-full">
       <div className="flex items-center justify-between px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
@@ -51,8 +61,10 @@ export function Header({ onMenuClick }: HeaderProps) {
                   <User className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
                 </div>
                 <div className="hidden sm:block text-left">
-                  <p className="text-sm font-medium">Admin User</p>
-                  <p className="text-xs text-gray-500">Administrator</p>
+                  <p className="text-sm font-medium">
+                    {user?.firstName} {user?.lastName}
+                  </p>
+                  <p className="text-xs text-gray-500 capitalize">{user?.userType}</p>
                 </div>
               </Button>
             </DropdownMenuTrigger>
@@ -68,7 +80,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                 Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 Log out
               </DropdownMenuItem>

@@ -22,26 +22,6 @@ type SubjectsByClass = {
   [key: string]: string[]
 }
 
-// Remove this mock data:
-// const mockStudents = [
-//   { id: 1, name: "John Doe", classId: 1, section: "Gold" },
-//   { id: 2, name: "Jane Smith", classId: 1, section: "Gold" },
-//   { id: 3, name: "Michael Johnson", classId: 1, section: "Silver" },
-//   { id: 4, name: "Emily Brown", classId: 1, section: "Gold" },
-//   { id: 5, name: "David Wilson", classId: 1, section: "Silver" },
-//   { id: 6, name: "Sarah Taylor", classId: 2, section: "Gold" },
-//   { id: 7, name: "James Anderson", classId: 2, section: "Gold" },
-//   { id: 8, name: "Jennifer Thomas", classId: 2, section: "Silver" },
-//   { id: 9, name: "Robert Jackson", classId: 2, section: "Gold" },
-//   { id: 10, name: "Elizabeth White", classId: 3, section: "Gold" },
-//   { id: 11, name: "William Harris", classId: 3, section: "Gold" },
-//   { id: 12, name: "Linda Martin", classId: 3, section: "Silver" },
-//   { id: 13, name: "Richard Thompson", classId: 3, section: "Gold" },
-//   { id: 14, name: "Patricia Garcia", classId: 3, section: "Silver" },
-//   { id: 15, name: "Charles Martinez", classId: 3, section: "Gold" },
-// ]
-
-// Replace with real database functions:
 const ClassesSectionComponent = () => {
   const [realStudents, setRealStudents] = useState([])
   const [formData, setFormData] = useState({
@@ -72,19 +52,20 @@ const ClassesSectionComponent = () => {
     },
   ]
 
-  // Add function to load real students from database:
+  // Load real students from database
   const loadStudentsFromDatabase = async () => {
     try {
+      console.log("Loading students from database...")
       const { data, error } = await supabase
         .from("students")
         .select(`
-        id,
-        first_name,
-        surname,
-        class,
-        section,
-        status
-      `)
+          id,
+          first_name,
+          surname,
+          class,
+          section,
+          status
+        `)
         .eq("status", "Active")
 
       if (error) {
@@ -96,18 +77,19 @@ const ClassesSectionComponent = () => {
         const transformedStudents = data.map((student) => ({
           id: student.id,
           name: `${student.first_name} ${student.surname}`,
-          classId: null, // We'll need to map this based on class name
+          classId: null,
           section: student.section,
           class: student.class,
         }))
         setRealStudents(transformedStudents)
+        console.log("Loaded students:", transformedStudents.length)
       }
     } catch (error) {
       console.error("Error loading students:", error)
     }
   }
 
-  // Mock academic calendar settings
+  // Academic calendar settings
   const academicCalendarSettings = {
     year: "2024-2025",
     startDate: "2024-09-01",
@@ -115,10 +97,8 @@ const ClassesSectionComponent = () => {
     currentTerm: "second",
   }
 
-  // Function to get class sections from settings (simulating fetch from settings section)
+  // Get class sections from settings
   const getClassSectionsFromSettings = () => {
-    // This would normally fetch from the settings section's classSections state
-    // For now, we'll simulate the two sections from settings
     return [
       {
         id: 1,
@@ -188,106 +168,21 @@ const ClassesSectionComponent = () => {
     maxStudents: "",
     section: "",
   })
-  const [classes, setClasses] = useState([
-    {
-      id: 1,
-      name: "Grade 10A",
-      teacher: "Dr. Sarah Johnson",
-      teacherId: "TCH001",
-      students: 0, // Will be dynamically updated
-      maxStudents: 40,
-      subjects: 8,
-      room: "Room 101",
-      section: "Gold", // Added section
-      academicYear: "", // Will be dynamically updated
-      description: "Science stream class focusing on advanced mathematics and sciences",
-    },
-    {
-      id: 2,
-      name: "Grade 10B",
-      teacher: "Mr. David Wilson",
-      teacherId: "TCH002",
-      students: 0, // Will be dynamically updated
-      maxStudents: 40,
-      subjects: 8,
-      room: "Room 102",
-      section: "Silver", // Added section
-      academicYear: "", // Will be dynamically updated
-      description: "Commerce stream class with focus on business studies and economics",
-    },
-    {
-      id: 3,
-      name: "Grade 9A",
-      teacher: "Mrs. Emily Brown",
-      teacherId: "TCH003",
-      students: 0, // Will be dynamically updated
-      maxStudents: 40,
-      subjects: 7,
-      room: "Room 201",
-      section: "Gold", // Added section
-      academicYear: "", // Will be dynamically updated
-      description: "General education class covering all core subjects",
-    },
-  ])
-
+  const [classes, setClasses] = useState([])
   const [currentAcademicYear, setCurrentAcademicYear] = useState(academicCalendarSettings.year)
 
-  // Replace the countStudentsPerClass function:
-  const countStudentsPerClass = (classItem: any) => {
-    return realStudents.filter((student) => student.class === classItem.name).length
-  }
-
-  // Replace the getSectionsPerClass function:
-  const getSectionsPerClass = (classItem: any) => {
-    const sections = [
-      ...new Set(realStudents.filter((student) => student.class === classItem.name).map((student) => student.section)),
-    ]
-    return sections.filter((section) => section) // Remove any null/undefined sections
-  }
-
-  // Function to get class sections from settings
-  const getSectionColor = (sectionName: string) => {
-    const section = getClassSectionsFromSettings().find((s) => s.name === sectionName)
-    return section?.color || "#808080" // Default gray if not found
-  }
-
-  const getClassesWithStudentCounts = () => {
-    return classes.map((classItem) => ({
-      ...classItem,
-      students: countStudentsPerClass(classItem),
-      academicYear: academicCalendarSettings.year,
-    }))
-  }
-
-  const getClassSections = () => {
-    const sections: { [key: number]: string[] } = {}
-    classes.forEach((classItem) => {
-      sections[classItem.id] = getSectionsPerClass(classItem)
-    })
-    return sections
-  }
-
-  // Add this useEffect after the existing ones
-  useEffect(() => {
-    loadClassesFromDatabase()
-  }, [])
-
-  // Add this useEffect after the existing ones:
-  useEffect(() => {
-    loadStudentsFromDatabase()
-  }, [])
-
-  // Sample teachers data (in real app, this would come from API)
+  // Teachers data
   const [availableTeachers, setAvailableTeachers] = useState([])
   const [isLoadingTeachers, setIsLoadingTeachers] = useState(false)
 
-  // Add this function to load teachers from database:
+  // Load teachers from database
   const loadAvailableTeachers = async () => {
     try {
       setIsLoadingTeachers(true)
+      console.log("Loading teachers from database...")
       const { data, error } = await supabase
         .from("teachers")
-        .select("id, employee_id, first_name, last_name, email, status")
+        .select("id, employee_id, first_name, surname, email, status")
         .eq("status", "Active")
         .order("first_name", { ascending: true })
 
@@ -298,11 +193,12 @@ const ClassesSectionComponent = () => {
 
       if (data) {
         const transformedTeachers = data.map((teacher) => ({
-          id: teacher.employee_id, // Use employee_id as the ID for consistency
-          name: `${teacher.first_name} ${teacher.last_name}`,
+          id: teacher.employee_id,
+          name: `${teacher.first_name} ${teacher.surname}`,
           email: teacher.email,
         }))
         setAvailableTeachers(transformedTeachers)
+        console.log("Loaded teachers:", transformedTeachers.length)
       }
     } catch (error) {
       console.error("Error loading teachers:", error)
@@ -311,24 +207,72 @@ const ClassesSectionComponent = () => {
     }
   }
 
-  // Add useEffect to load teachers when component mounts:
+  // Get section color
+  const getSectionColor = (sectionName: string) => {
+    const section = getClassSectionsFromSettings().find((s) => s.name === sectionName)
+    return section?.color || "#808080"
+  }
+
+  // Load classes from database with correct column names
+  const loadClassesFromDatabase = async () => {
+    try {
+      console.log("Loading classes from database...")
+      const { data, error } = await supabase
+        .from("classes")
+        .select(`
+          id,
+          name,
+          category,
+          section,
+          academic_year,
+          teacher_id,
+          teacher_name,
+          max_students,
+          current_students,
+          subjects_count,
+          status,
+          description
+        `)
+        .eq("status", "Active")
+        .order("category", { ascending: true })
+        .order("name", { ascending: true })
+
+      if (error) {
+        console.error("Error loading classes:", error)
+        return
+      }
+
+      if (data) {
+        console.log("Raw classes data:", data)
+        const transformedClasses = data.map((cls) => ({
+          id: cls.id,
+          name: cls.name,
+          category: cls.category,
+          section: cls.section,
+          teacher: cls.teacher_name || "Unassigned",
+          teacherId: cls.teacher_id || "",
+          students: cls.current_students || 0,
+          maxStudents: cls.max_students || 40,
+          subjects: cls.subjects_count || 0,
+          academicYear: cls.academic_year,
+          description: cls.description || "",
+        }))
+
+        setClasses(transformedClasses)
+        console.log("Loaded classes:", transformedClasses.length)
+        console.log("Transformed classes:", transformedClasses)
+      }
+    } catch (error) {
+      console.error("Error loading classes:", error)
+    }
+  }
+
+  // Load data on component mount
   useEffect(() => {
+    loadClassesFromDatabase()
+    loadStudentsFromDatabase()
     loadAvailableTeachers()
   }, [])
-
-  const availableRooms = [
-    "Room 101",
-    "Room 102",
-    "Room 103",
-    "Room 201",
-    "Room 202",
-    "Room 203",
-    "Lab A",
-    "Lab B",
-    "Computer Lab",
-    "Library",
-    "Auditorium",
-  ]
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({
@@ -345,7 +289,7 @@ const ClassesSectionComponent = () => {
       setFormData((prev) => ({
         ...prev,
         name: className,
-        category: category.name, // This will now be "Junior" or "Senior"
+        category: category.name,
         subjects: subjectCount.toString(),
         isReadOnly: true,
       }))
@@ -385,7 +329,7 @@ const ClassesSectionComponent = () => {
             teacher_name: selectedTeacher?.name || "",
             max_students: Number.parseInt(formData.maxStudents) || 40,
             subjects_count: Number.parseInt(formData.subjects) || 0,
-            room: "TBD",
+            current_students: 0,
             status: "Active",
             description: `${formData.category} class - ${formData.name} (${formData.section} Section)`,
           },
@@ -399,22 +343,8 @@ const ClassesSectionComponent = () => {
       }
 
       if (data && data[0]) {
-        // Add to local state for immediate UI update
-        const newClass = {
-          id: data[0].id,
-          name: data[0].name,
-          teacher: data[0].teacher_name,
-          teacherId: data[0].teacher_id,
-          students: data[0].current_students || 0,
-          maxStudents: data[0].max_students,
-          subjects: data[0].subjects_count,
-          room: data[0].room,
-          section: data[0].section,
-          academicYear: data[0].academic_year,
-          description: data[0].description,
-        }
-
-        setClasses((prev) => [...prev, newClass])
+        // Reload classes from database
+        await loadClassesFromDatabase()
 
         // Reset form
         setFormData({
@@ -437,16 +367,24 @@ const ClassesSectionComponent = () => {
     }
   }
 
-  const handleDeleteClass = (classItem: any) => {
-    setClassToDelete(classItem)
-    setIsDeleteDialogOpen(true)
-  }
+  const handleDeleteClass = async (classItem: any) => {
+    if (confirm(`Are you sure you want to delete ${classItem.name}?`)) {
+      try {
+        const { error } = await supabase.from("classes").delete().eq("id", classItem.id)
 
-  const confirmDeleteClass = () => {
-    if (classToDelete) {
-      setClasses((prev) => prev.filter((c) => c.id !== classToDelete.id))
-      setIsDeleteDialogOpen(false)
-      setClassToDelete(null)
+        if (error) {
+          console.error("Error deleting class:", error)
+          alert("Failed to delete class. Please try again.")
+          return
+        }
+
+        // Reload classes from database
+        await loadClassesFromDatabase()
+        alert("Class deleted successfully!")
+      } catch (error) {
+        console.error("Error deleting class:", error)
+        alert("Failed to delete class. Please try again.")
+      }
     }
   }
 
@@ -461,113 +399,46 @@ const ClassesSectionComponent = () => {
     setIsEditDialogOpen(true)
   }
 
-  const handleUpdateClass = () => {
+  const handleUpdateClass = async () => {
     if (!editFormData.name || !editFormData.teacher || !editFormData.section) {
       alert("Please fill in all required fields")
       return
     }
 
-    // Check if teacher is being switched from another class
-    const teacherCurrentClass = classes.find(
-      (classItem) => classItem.teacherId === editFormData.teacher && classItem.id !== selectedClass.id,
-    )
+    try {
+      const selectedTeacher = availableTeachers.find((t) => t.id === editFormData.teacher)
 
-    let confirmSwitch = true
-    if (teacherCurrentClass) {
-      confirmSwitch = confirm(
-        `${availableTeachers.find((t) => t.id === editFormData.teacher)?.name} is currently assigned to ${teacherCurrentClass.name}.\n\n` +
-          `Proceeding will:\n` +
-          `• Move the teacher to ${selectedClass.name}\n` +
-          `• Leave ${teacherCurrentClass.name} without a class teacher\n\n` +
-          `Do you want to continue with this teacher switch?`,
-      )
+      const { error } = await supabase
+        .from("classes")
+        .update({
+          teacher_id: editFormData.teacher,
+          teacher_name: selectedTeacher?.name || "",
+          max_students: Number.parseInt(editFormData.maxStudents) || 40,
+          section: editFormData.section,
+        })
+        .eq("id", selectedClass.id)
+
+      if (error) {
+        console.error("Error updating class:", error)
+        alert("Failed to update class. Please try again.")
+        return
+      }
+
+      // Reload classes from database
+      await loadClassesFromDatabase()
+      setIsEditDialogOpen(false)
+      setSelectedClass(null)
+      alert("Class updated successfully!")
+    } catch (error) {
+      console.error("Error updating class:", error)
+      alert("Failed to update class. Please try again.")
     }
-
-    if (!confirmSwitch) {
-      return
-    }
-
-    const selectedTeacher = availableTeachers.find((t) => t.id === editFormData.teacher)
-
-    setClasses((prev) =>
-      prev.map((classItem) => {
-        // Update the selected class
-        if (classItem.id === selectedClass.id) {
-          return {
-            ...classItem,
-            name: editFormData.name,
-            teacher: selectedTeacher?.name || "",
-            teacherId: editFormData.teacher,
-            maxStudents: Number.parseInt(editFormData.maxStudents) || 40,
-            section: editFormData.section,
-          }
-        }
-        // Remove teacher from previous class if switching
-        else if (teacherCurrentClass && classItem.id === teacherCurrentClass.id) {
-          return {
-            ...classItem,
-            teacher: "Unassigned - Needs Teacher",
-            teacherId: "",
-          }
-        }
-        return classItem
-      }),
-    )
-
-    // Show success message with switch information
-    if (teacherCurrentClass) {
-      alert(
-        `Teacher switch completed!\n\n` +
-          `${selectedTeacher?.name} has been moved to ${selectedClass.name}.\n` +
-          `${teacherCurrentClass.name} now needs a new teacher assignment.`,
-      )
-    }
-
-    setIsEditDialogOpen(false)
-    setSelectedClass(null)
   }
 
   const handleViewDetails = (classItem: any) => {
     setSelectedClass(classItem)
     setIsViewDetailsDialogOpen(true)
   }
-
-  const loadClassesFromDatabase = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("classes_with_details")
-        .select("*")
-        .order("category", { ascending: true })
-        .order("name", { ascending: true })
-
-      if (error) {
-        console.error("Error loading classes:", error)
-        return
-      }
-
-      if (data) {
-        const transformedClasses = data.map((cls) => ({
-          id: cls.id,
-          name: cls.name,
-          teacher: cls.teacher_name || "Unassigned",
-          teacherId: cls.teacher_id || "",
-          students: cls.current_students || 0,
-          maxStudents: cls.max_students,
-          subjects: cls.subjects_count,
-          room: cls.room,
-          section: cls.section,
-          academicYear: cls.academic_year,
-          description: cls.description || "",
-        }))
-
-        setClasses(transformedClasses)
-      }
-    } catch (error) {
-      console.error("Error loading classes:", error)
-    }
-  }
-
-  const classesWithCounts = getClassesWithStudentCounts()
 
   return (
     <div className="space-y-6">
@@ -602,7 +473,7 @@ const ClassesSectionComponent = () => {
             <GraduationCap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{classesWithCounts.length}</div>
+            <div className="text-2xl font-bold">{classes.length}</div>
             <p className="text-xs text-muted-foreground">
               {classCategories.reduce((acc, cat) => acc + cat.classes.length, 0)} available class types
             </p>
@@ -617,7 +488,7 @@ const ClassesSectionComponent = () => {
           <CardContent>
             <div className="text-2xl font-bold">{realStudents.length}</div>
             <p className="text-xs text-muted-foreground">
-              {classesWithCounts.reduce((acc, c) => acc + c.maxStudents, 0)} total capacity
+              {classes.reduce((acc, c) => acc + c.maxStudents, 0)} total capacity
             </p>
           </CardContent>
         </Card>
@@ -628,7 +499,7 @@ const ClassesSectionComponent = () => {
             <BookOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{new Set(classesWithCounts.map((c) => c.teacherId)).size}</div>
+            <div className="text-2xl font-bold">{new Set(classes.map((c) => c.teacherId)).size}</div>
             <p className="text-xs text-muted-foreground">{availableTeachers.length} total available</p>
           </CardContent>
         </Card>
@@ -651,7 +522,7 @@ const ClassesSectionComponent = () => {
 
       {/* Classes Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {classesWithCounts.map((classItem) => (
+        {classes.map((classItem) => (
           <Card key={classItem.id} className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -708,6 +579,11 @@ const ClassesSectionComponent = () => {
               </div>
 
               <div className="space-y-2 text-sm text-gray-600">
+                {/* Category */}
+                <div>
+                  <strong>Category:</strong> {classItem.category}
+                </div>
+
                 {/* Section Badge */}
                 <div className="flex items-center">
                   <Layers className="w-4 h-4 mr-2" />
@@ -715,7 +591,7 @@ const ClassesSectionComponent = () => {
                   <Badge
                     className="ml-2"
                     style={{
-                      backgroundColor: getSectionColor(classItem.section) + "33", // Add transparency
+                      backgroundColor: getSectionColor(classItem.section) + "33",
                       color: getSectionColor(classItem.section),
                       border: `1px solid ${getSectionColor(classItem.section)}`,
                     }}
@@ -724,26 +600,7 @@ const ClassesSectionComponent = () => {
                   </Badge>
                 </div>
 
-                {/* Available Sections from Settings */}
-                <div className="flex flex-wrap gap-1 mt-2">
-                  <span className="font-medium mr-1">Available Sections:</span>
-                  {getClassSectionsFromSettings().map((section, idx) => (
-                    <Badge
-                      key={idx}
-                      variant="outline"
-                      className="text-xs"
-                      style={{
-                        backgroundColor: section.color + "22", // More transparency
-                        borderColor: section.color,
-                        color: section.color,
-                      }}
-                    >
-                      {section.name}
-                    </Badge>
-                  ))}
-                </div>
-
-                {/* Academic Year - dynamically pulled from settings */}
+                {/* Academic Year */}
                 <div>
                   <strong>Academic Year:</strong> {classItem.academicYear}
                 </div>
@@ -807,9 +664,9 @@ const ClassesSectionComponent = () => {
               <div className="col-span-3">
                 <Input
                   id="category"
-                  defaultValue={formData.category}
+                  value={formData.category}
                   readOnly={true}
-                  className={`${formData.isReadOnly ? "bg-gray-100 cursor-not-allowed" : ""}`}
+                  className="bg-gray-100 cursor-not-allowed"
                   placeholder="Auto-filled based on class selection"
                 />
                 {formData.isReadOnly && (
@@ -851,9 +708,9 @@ const ClassesSectionComponent = () => {
                 <Input
                   id="subjects"
                   type="number"
-                  defaultValue={formData.subjects}
+                  value={formData.subjects}
                   readOnly={true}
-                  className={`${formData.isReadOnly ? "bg-gray-100 cursor-not-allowed" : ""}`}
+                  className="bg-gray-100 cursor-not-allowed"
                   placeholder="Auto-calculated from class subjects"
                 />
                 {formData.isReadOnly && (
@@ -1006,7 +863,7 @@ const ClassesSectionComponent = () => {
               </Select>
             </div>
 
-            {/* Class Teacher - Enhanced with Switch Capability */}
+            {/* Class Teacher */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="editTeacher" className="text-right">
                 Class Teacher *
@@ -1148,12 +1005,12 @@ const ClassesSectionComponent = () => {
                       <span>{selectedClass.teacher}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="font-medium">Academic Year:</span>
-                      <span>{selectedClass.academicYear}</span>
+                      <span className="font-medium">Category:</span>
+                      <span>{selectedClass.category}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="font-medium">Room:</span>
-                      <span>{selectedClass.room}</span>
+                      <span className="font-medium">Academic Year:</span>
+                      <span>{selectedClass.academicYear}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium">Capacity Utilization:</span>
@@ -1168,32 +1025,22 @@ const ClassesSectionComponent = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {getSectionsPerClass(selectedClass).map((section) => {
-                        const sectionCount = realStudents.filter(
-                          (s) => s.class === selectedClass.name && s.section === section,
-                        ).length
-                        return (
-                          <div key={section} className="flex items-center justify-between">
-                            <div className="flex items-center">
-                              <div
-                                className="w-3 h-3 rounded-full mr-2"
-                                style={{ backgroundColor: getSectionColor(section) }}
-                              ></div>
-                              <span>{section} Section</span>
-                            </div>
-                            <Badge variant="outline">{sectionCount} students</Badge>
-                          </div>
-                        )
-                      })}
-                      {getSectionsPerClass(selectedClass).length === 0 && (
-                        <p className="text-center text-gray-500 py-4">No students assigned to this class yet.</p>
-                      )}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div
+                            className="w-3 h-3 rounded-full mr-2"
+                            style={{ backgroundColor: getSectionColor(selectedClass.section) }}
+                          ></div>
+                          <span>{selectedClass.section} Section</span>
+                        </div>
+                        <Badge variant="outline">{selectedClass.students} students</Badge>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Students List - Read-only view */}
+              {/* Students List */}
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="text-lg">Students in Class</CardTitle>
@@ -1238,97 +1085,6 @@ const ClassesSectionComponent = () => {
               Close
             </Button>
             <Button onClick={() => setIsViewDetailsDialogOpen(false)}>Done</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center text-red-600">
-              <Trash2 className="mr-2 h-5 w-5" />
-              Delete Class Confirmation
-            </DialogTitle>
-            <DialogDescription>
-              This action cannot be undone. Please confirm that you want to delete this class.
-            </DialogDescription>
-          </DialogHeader>
-
-          {classToDelete && (
-            <div className="space-y-4">
-              {/* Class Information */}
-              <div className="bg-red-50 border border-red-200 rounded p-4">
-                <h4 className="font-semibold text-red-800 mb-2">Class to be deleted:</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="font-medium">Class Name:</span>
-                    <span>{classToDelete.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">Teacher:</span>
-                    <span>{classToDelete.teacher}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">Students:</span>
-                    <span>{classToDelete.students} students</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium">Section:</span>
-                    <Badge
-                      style={{
-                        backgroundColor: getSectionColor(classToDelete.section) + "33",
-                        color: getSectionColor(classToDelete.section),
-                      }}
-                    >
-                      {classToDelete.section}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-
-              {/* Warning Message */}
-              <div className="bg-amber-50 border border-amber-200 rounded p-3">
-                <div className="flex items-start">
-                  <div className="text-amber-600 mr-2 mt-0.5">⚠️</div>
-                  <div>
-                    <p className="font-medium text-amber-800 text-sm">Warning</p>
-                    <p className="text-xs text-amber-700 mt-1">
-                      Deleting this class will:
-                      <br />• Remove the class from the system
-                      <br />• Free up the assigned teacher for other classes
-                      <br />• This action cannot be undone
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Student Impact */}
-              {classToDelete.students > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                  <div className="flex items-start">
-                    <div className="text-blue-600 mr-2 mt-0.5">ℹ️</div>
-                    <div>
-                      <p className="font-medium text-blue-800 text-sm">Student Information</p>
-                      <p className="text-xs text-blue-700 mt-1">
-                        This class has {classToDelete.students} students. Deleting this class will NOT affect student
-                        records. Students will need to be assigned to a different class in the Students section.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={confirmDeleteClass}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete Class
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,42 +1,86 @@
 "use client"
 
-import { useAuth } from "@/contexts/auth-context"
-import { useRouter } from "next/router"
-import { useEffect } from "react"
+import type React from "react"
+import { useState } from "react"
+import { TeacherSidebar } from "./teacher-sidebar"
+import { TeacherHeader } from "./teacher-header"
+import { TeacherDashboardContent } from "./teacher-dashboard-content"
+import { MyClassesSection } from "./sections/my-classes-section"
+import { MySubjectsSection } from "./sections/my-subjects-section"
+import { MarksEntrySection } from "./sections/marks-entry-section"
+import { AttendanceSection } from "./sections/attendance-section"
+import { AssignmentsSection } from "./sections/assignments-section"
+import { TimetableSection } from "./sections/timetable-section"
+import { StudentPerformanceSection } from "./sections/student-performance-section"
+import { CommunicationsSection } from "./sections/communications-section"
+import { SettingsSection } from "./sections/settings-section"
+import { AllTeachersSection } from "./sections/all-teachers-section"
+import { ClassAssignedSection } from "./sections/class-assigned-section"
+import { SubjectsOverviewSection } from "./sections/subjects-overview-section"
+import { ReportCommentsSection } from "./sections/report-comments-section"
+import { UploadsSection } from "./sections/uploads-section"
 
-const TeacherDashboard = () => {
-  const router = useRouter()
-  const { user, logout } = useAuth()
+const TeacherDashboard: React.FC = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [activeSection, setActiveSection] = useState("dashboard")
 
-  useEffect(() => {
-    if (!user) {
-      router.push("/login")
+  const renderActiveSection = () => {
+    switch (activeSection) {
+      case "dashboard":
+        return <TeacherDashboardContent />
+      case "my-classes":
+        return <MyClassesSection />
+      case "my-subjects":
+        return <MySubjectsSection />
+      case "marks-entry":
+        return <MarksEntrySection />
+      case "attendance":
+        return <AttendanceSection />
+      case "assignments":
+        return <AssignmentsSection />
+      case "timetable":
+        return <TimetableSection />
+      case "student-performance":
+        return <StudentPerformanceSection />
+      case "all-teachers":
+        return <AllTeachersSection />
+      case "class-assigned":
+        return <ClassAssignedSection />
+      case "subjects-overview":
+        return <SubjectsOverviewSection />
+      case "report-comments":
+        return <ReportCommentsSection />
+      case "uploads":
+        return <UploadsSection />
+      case "communications":
+        return <CommunicationsSection />
+      case "settings":
+        return <SettingsSection />
+      default:
+        return <TeacherDashboardContent />
     }
-  }, [user, router])
-
-  const teacherData =
-    user?.userType === "teacher"
-      ? {
-          id: user.dbId,
-          name: `${user.firstName} ${user.lastName}`,
-          email: user.email,
-          department: user.department,
-          phone: user.phone,
-        }
-      : null
-
-  if (!teacherData) {
-    return <div>Loading or not authorized...</div>
   }
 
   return (
-    <div>
-      <h1>Teacher Dashboard</h1>
-      <p>Welcome, {teacherData.name}!</p>
-      <p>Email: {teacherData.email}</p>
-      <p>Department: {teacherData.department}</p>
-      <p>Phone: {teacherData.phone}</p>
-      <button onClick={logout}>Logout</button>
+    <div className="min-h-screen bg-gray-50 flex w-full">
+      {/* Sidebar */}
+      <TeacherSidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        activeSection={activeSection}
+        setActiveSection={setActiveSection}
+      />
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0 w-full lg:ml-0">
+        {/* Header */}
+        <TeacherHeader onMenuClick={() => setSidebarOpen(true)} />
+
+        {/* Dashboard Content */}
+        <main className="flex-1 p-3 sm:p-4 lg:p-6 overflow-x-hidden w-full">
+          <div className="w-full max-w-none">{renderActiveSection()}</div>
+        </main>
+      </div>
     </div>
   )
 }

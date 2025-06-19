@@ -25,7 +25,7 @@ export function TeacherHeader({ onMenuClick }: TeacherHeaderProps) {
 
   const handleLogout = () => {
     logout()
-    router.push("/teacher-login")
+    router.push("/login") // Changed from "/teacher-login" to "/login"
   }
 
   return (

@@ -2,18 +2,18 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/contexts/auth-context"
+import { useTeacherAuth } from "@/contexts/teacher-auth-context"
 import TeacherDashboard from "@/components/teacher-dashboard/teacher-dashboard"
 
 export default function TeacherDashboardPage() {
-  const { user, isLoading } = useAuth()
+  const { teacher, isLoading } = useTeacherAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (!isLoading && (!user || user.userType !== "teacher")) {
-      router.push("/login")
+    if (!isLoading && !teacher) {
+      router.push("/teacher-login")
     }
-  }, [user, isLoading, router])
+  }, [teacher, isLoading, router])
 
   if (isLoading) {
     return (
@@ -26,7 +26,7 @@ export default function TeacherDashboardPage() {
     )
   }
 
-  if (!user || user.userType !== "teacher") {
+  if (!teacher) {
     return null
   }
 

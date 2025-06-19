@@ -49,7 +49,10 @@ export function TeachersSection() {
         // Transform database data to match component format
         const transformedTeachers = data.map((teacher) => ({
           id: teacher.id,
-          name: `${teacher.first_name} ${teacher.last_name}`,
+          // Fix name construction to use first_name, middle_name, surname
+          name: [teacher.first_name, teacher.middle_name, teacher.surname]
+            .filter(Boolean) // Remove null/undefined values
+            .join(" "), // Join with spaces
           employeeId: teacher.employee_id,
           email: teacher.email,
           phone: teacher.phone,
@@ -185,7 +188,8 @@ export function TeachersSection() {
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     firstName: "",
-    lastName: "",
+    middleName: "", // Add this field
+    lastName: "", // Keep as lastName for form, will map to surname in database
     email: "",
     phone: "",
     dateOfBirth: "",
@@ -203,7 +207,7 @@ export function TeachersSection() {
     customUsername: "",
     customPassword: "",
     sendCredentialsTo: "",
-    photo: "", // Add this new field
+    photo: "",
   })
 
   const generateEmployeeId = () => {
@@ -230,7 +234,8 @@ export function TeachersSection() {
       const teacherData = {
         employee_id: employeeId,
         first_name: formData.firstName,
-        last_name: formData.lastName,
+        middle_name: formData.middleName || null, // Map to middle_name
+        surname: formData.lastName, // Map to surname
         email: formData.email,
         phone: formData.phone,
         date_of_birth: formData.dateOfBirth || null,
@@ -308,6 +313,7 @@ export function TeachersSection() {
       // Reset form
       setFormData({
         firstName: "",
+        middleName: "", // Add this
         lastName: "",
         email: "",
         phone: "",
@@ -428,7 +434,7 @@ export function TeachersSection() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="firstName">First Name *</Label>
                         <Input
@@ -440,12 +446,21 @@ export function TeachersSection() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="lastName">Last Name *</Label>
+                        <Label htmlFor="middleName">Middle Name</Label>
+                        <Input
+                          id="middleName"
+                          value={formData.middleName}
+                          onChange={(e) => handleInputChange("middleName", e.target.value)}
+                          placeholder="Enter middle name (optional)"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lastName">Surname *</Label>
                         <Input
                           id="lastName"
                           value={formData.lastName}
                           onChange={(e) => handleInputChange("lastName", e.target.value)}
-                          placeholder="Enter last name"
+                          placeholder="Enter surname"
                           required
                         />
                       </div>
