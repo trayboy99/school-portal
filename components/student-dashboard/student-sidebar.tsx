@@ -1,35 +1,29 @@
 "use client"
+
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Upload } from "lucide-react"
-
 import {
   LayoutDashboard,
   Users,
-  GraduationCap,
   BookOpen,
-  Calendar,
-  UserCheck,
   BarChart3,
-  FileText,
   ClipboardList,
-  Library,
-  DollarSign,
   MessageSquare,
   Settings,
   X,
-  School,
+  GraduationCap,
+  StickyNote,
 } from "lucide-react"
 
-interface SidebarProps {
+interface StudentSidebarProps {
   isOpen: boolean
   onClose: () => void
   activeSection: string
   setActiveSection: (section: string) => void
 }
 
-export function Sidebar({ isOpen, onClose, activeSection, setActiveSection }: SidebarProps) {
+export function StudentSidebar({ isOpen, onClose, activeSection, setActiveSection }: StudentSidebarProps) {
   const menuItems = [
     {
       id: "dashboard",
@@ -38,88 +32,40 @@ export function Sidebar({ isOpen, onClose, activeSection, setActiveSection }: Si
       count: null,
     },
     {
-      id: "students",
-      label: "Students",
+      id: "class",
+      label: "My Class",
       icon: Users,
-      count: 1247,
-    },
-    {
-      id: "teachers",
-      label: "Teachers",
-      icon: GraduationCap,
-      count: 89,
-    },
-    {
-      id: "classes",
-      label: "Classes",
-      icon: School,
-      count: 24,
+      count: null,
     },
     {
       id: "subjects",
       label: "Subjects",
       icon: BookOpen,
+      count: 9,
+    },
+    {
+      id: "notes",
+      label: "Notes",
+      icon: StickyNote,
       count: 15,
-    },
-    {
-      id: "timetable",
-      label: "Timetable",
-      icon: Calendar,
-      count: null,
-    },
-    {
-      id: "attendance",
-      label: "Attendance",
-      icon: UserCheck,
-      count: null,
-    },
-    {
-      id: "grades",
-      label: "Grades",
-      icon: BarChart3,
-      count: null,
-    },
-    {
-      id: "exams",
-      label: "Exams",
-      icon: ClipboardList,
-      count: 8,
     },
     {
       id: "results",
       label: "Results",
-      icon: FileText,
-      count: null,
-    },
-    {
-      id: "uploads",
-      label: "Uploads",
-      icon: Upload,
-      count: 0, // or undefined if not needed
-    },
-    {
-      id: "library",
-      label: "Library",
-      icon: Library,
-      count: 2341,
-    },
-    {
-      id: "finance",
-      label: "Finance",
-      icon: DollarSign,
-      count: null,
-    },
-    {
-      id: "communications",
-      label: "Communications",
-      icon: MessageSquare,
-      count: 5,
-    },
-    {
-      id: "reports",
-      label: "Reports",
       icon: BarChart3,
       count: null,
+    },
+    {
+      id: "assignments",
+      label: "Assignments",
+      icon: ClipboardList,
+      count: 3,
+    },
+    {
+      id: "messages",
+      label: "Messages",
+      icon: MessageSquare,
+      count: 2,
     },
     {
       id: "settings",
@@ -144,12 +90,12 @@ export function Sidebar({ isOpen, onClose, activeSection, setActiveSection }: Si
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">W</span>
+            <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
+              <GraduationCap className="text-white h-4 w-4" />
             </div>
             <div>
-              <h1 className="font-bold text-lg">Westminster</h1>
-              <p className="text-xs text-gray-500">College Lagos</p>
+              <h1 className="font-bold text-lg">Student Portal</h1>
+              <p className="text-xs text-gray-500">Westminster College</p>
             </div>
           </div>
           <Button variant="ghost" size="sm" className="lg:hidden" onClick={onClose}>
@@ -158,15 +104,15 @@ export function Sidebar({ isOpen, onClose, activeSection, setActiveSection }: Si
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-140px)]">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {menuItems.map((item) => (
             <Button
               key={item.id}
               variant={activeSection === item.id ? "default" : "ghost"}
               className={cn(
-                "w-full justify-start text-left h-10 flex-shrink-0",
+                "w-full justify-start text-left h-10",
                 activeSection === item.id
-                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  ? "bg-green-600 text-white hover:bg-green-700"
                   : "text-gray-700 hover:bg-gray-100",
               )}
               onClick={() => {
@@ -188,7 +134,7 @@ export function Sidebar({ isOpen, onClose, activeSection, setActiveSection }: Si
         {/* Footer */}
         <div className="p-4 border-t">
           <p className="text-xs text-gray-500">© 2024 Westminster College</p>
-          <p className="text-xs text-gray-500">Version 1.0.0</p>
+          <p className="text-xs text-gray-500">Student Portal v1.0</p>
         </div>
       </div>
     </>

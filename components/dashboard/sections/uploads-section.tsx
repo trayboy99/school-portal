@@ -6,221 +6,314 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Clock, Users, FileText, Download } from "lucide-react"
+import { supabase } from "@/lib/supabase"
 
 type UploadEntry = {
-  type: string
-  name: string
-  subject: string
-  file: File | null
+  id: number
+  upload_type: string
+  teacher_id: number
+  teacher_name?: string
+  subject_name: string
+  class_name: string
+  file_name: string
+  file_url?: string
+  uploaded_at: string
+  academic_year: string
+  term: string
+  week?: number
+}
+
+type Deadline = {
+  id: number
+  deadline_type: string
+  deadline_date: string
+  academic_year: string
+  term: string
+  is_active: boolean
 }
 
 export function UploadsSection() {
-  // Dynamic data from settings
-  const [sessions, setSessions] = useState<string[]>([])
-  const [terms, setTerms] = useState<{ id: number; name: string; status: string }[]>([])
-  const [weeks] = useState(Array.from({ length: 12 }, (_, i) => i + 1))
+  const [uploads, setUploads] = useState<UploadEntry[]>([])
+  const [deadlines, setDeadlines] = useState<Deadline[]>([])
   const [classes, setClasses] = useState<string[]>([])
-  const [subjects, setSubjects] = useState<string[]>([])
-  const [teachersUploaded, setTeachersUploaded] = useState<UploadEntry[]>([])
-
-  const [selectedSession, setSelectedSession] = useState("")
-  const [selectedTerm, setSelectedTerm] = useState("")
-  const [selectedWeek, setSelectedWeek] = useState<number | "">("")
   const [selectedClass, setSelectedClass] = useState("")
-  const [selectedSubject, setSelectedSubject] = useState("")
-  const [topic, setTopic] = useState("")
-  const [showExamForm, setShowExamForm] = useState(false)
-  const [showEnoteForm, setShowEnoteForm] = useState(false)
-  const [examFile, setExamFile] = useState<File | null>(null)
-  const [enotesFile, setEnotesFile] = useState<File | null>(null)
-
-  const userRole: "teacher" | "admin" = "teacher"
-  const [deadlines, setDeadlines] = useState({
-    exam: new Date("2025-06-21"),
-    enotes: new Date("2025-06-25"),
+  const [loading, setLoading] = useState(true)
+  const [showDeadlineForm, setShowDeadlineForm] = useState(false)
+  const [activeTab, setActiveTab] = useState("exam")
+  const [deadlineForm, setDeadlineForm] = useState({
+    deadline_type: "",
+    deadline_date: "",
+    academic_year: "2024-2025",
+    term: "Second Term",
   })
+  const [examSubmissionSummary, setExamSubmissionSummary] = useState<any[]>([])
+  const [enotesSubmissionSummary, setEnotesSubmissionSummary] = useState<any[]>([])
 
-  // Fetch data from settings on component mount
-  useEffect(() => {
-    // Fetch academic calendar data
-    const academicData = localStorage.getItem("academic_settings")
-    if (academicData) {
-      const parsed = JSON.parse(academicData)
-      setSessions([parsed.academicYear?.year || "2024-2025"])
-      setTerms(
-        parsed.terms || [
-          { id: 1, name: "First Term", status: "completed" },
-          { id: 2, name: "Second Term", status: "active" },
-          { id: 3, name: "Third Term", status: "upcoming" },
-        ],
-      )
-    } else {
-      // Default fallback data
-      setSessions(["2024-2025"])
-      setTerms([
-        { id: 1, name: "First Term", status: "completed" },
-        { id: 2, name: "Second Term", status: "active" },
-        { id: 3, name: "Third Term", status: "upcoming" },
-      ])
-    }
-
-    // Fetch class categories data
-    const classData = localStorage.getItem("class_categories")
-    if (classData) {
-      const parsed = JSON.parse(classData)
-      const allClasses = parsed.flatMap((category: any) => category.classes)
-      setClasses(allClasses)
-    } else {
-      // Default fallback data from settings
-      setClasses(["JSS 1", "JSS 2", "JSS 3", "SSS 1", "SSS 2", "SSS 3"])
-    }
-
-    // Fetch subjects based on selected class
-    const subjectsData = localStorage.getItem("subjects_by_class")
-    if (subjectsData) {
-      const parsed = JSON.parse(subjectsData)
-      if (selectedClass && parsed[selectedClass]) {
-        setSubjects(parsed[selectedClass])
+  const handleDownload = async (upload: UploadEntry) => {
+    try {
+      if (upload.file_url) {
+        const link = document.createElement("a")
+        link.href = upload.file_url
+        link.download = upload.file_name
+        link.target = "_blank"
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        return
       }
-    } else {
-      // Default subjects
-      setSubjects(["Mathematics", "English", "Basic Science", "Physics", "Chemistry", "Biology"])
-    }
 
-    // Fetch global deadlines
-    const globalDeadlines = localStorage.getItem("global_deadlines")
-    if (globalDeadlines) {
-      const parsed = JSON.parse(globalDeadlines)
-      setDeadlines({
-        exam: new Date(parsed.exam),
-        enotes: new Date(parsed.enotes),
-      })
-    }
-  }, [selectedClass])
+      const { data, error } = await supabase.storage
+        .from("uploads")
+        .download(`${upload.upload_type}/${upload.file_name}`)
 
-  // Update subjects when class changes
-  useEffect(() => {
-    if (selectedClass) {
-      const subjectsData = localStorage.getItem("subjects_by_class")
-      if (subjectsData) {
-        const parsed = JSON.parse(subjectsData)
-        setSubjects(parsed[selectedClass] || [])
-      } else {
-        // Default subjects mapping
-        const defaultSubjects: { [key: string]: string[] } = {
-          "JSS 1": [
-            "Mathematics",
-            "English",
-            "Basic Science",
-            "Social Studies",
-            "Civic Education",
-            "Computer Studies",
-            "French",
-            "Creative Arts",
-            "Physical Education",
-          ],
-          "JSS 2": [
-            "Mathematics",
-            "English",
-            "Basic Science",
-            "Social Studies",
-            "Civic Education",
-            "Computer Studies",
-            "French",
-            "Creative Arts",
-            "Physical Education",
-          ],
-          "JSS 3": [
-            "Mathematics",
-            "English",
-            "Basic Science",
-            "Social Studies",
-            "Civic Education",
-            "Computer Studies",
-            "French",
-            "Creative Arts",
-            "Physical Education",
-          ],
-          "SSS 1": ["Mathematics", "English", "Physics", "Chemistry", "Biology", "Economics"],
-          "SSS 2": ["Mathematics", "English", "Physics", "Chemistry", "Biology", "Economics"],
-          "SSS 3": ["Mathematics", "English", "Physics", "Chemistry", "Biology", "Economics"],
-        }
-        setSubjects(defaultSubjects[selectedClass] || [])
+      if (error) {
+        console.error("Download error:", error)
+        alert(`Error downloading file: ${error.message}`)
+        return
       }
-    }
-  }, [selectedClass])
 
-  const isDeadlinePassed = (type: "exam" | "enotes") => {
-    const now = new Date()
-    return userRole === "teacher" && deadlines[type].getTime() < now.getTime()
+      const url = URL.createObjectURL(data)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = upload.file_name
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Download error:", error)
+      alert(`Error downloading file: ${upload.file_name}`)
+    }
   }
 
-  const countdownMessage = (type: "exam" | "enotes") => {
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  useEffect(() => {
+    if (selectedClass && uploads.length > 0) {
+      loadSubmissionSummary("exam_questions")
+      loadSubmissionSummary("e_notes")
+    }
+  }, [selectedClass, uploads])
+
+  const loadData = async () => {
+    try {
+      setLoading(true)
+
+      // Load uploads with teacher names joined
+      const { data: uploadsData, error: uploadsError } = await supabase
+        .from("uploads")
+        .select(`
+          *,
+          teachers!inner(first_name, middle_name, surname)
+        `)
+        .order("uploaded_at", { ascending: false })
+
+      if (uploadsError) {
+        console.error("Error loading uploads:", uploadsError)
+      } else {
+        // Transform the data to include teacher_name
+        const transformedUploads =
+          uploadsData?.map((upload) => ({
+            ...upload,
+            teacher_name:
+              `${upload.teachers.first_name} ${upload.teachers.middle_name || ""} ${upload.teachers.surname}`
+                .replace(/\s+/g, " ")
+                .trim(),
+          })) || []
+
+        console.log("Loaded uploads with teacher names:", transformedUploads)
+        setUploads(transformedUploads)
+      }
+
+      const { data: deadlinesData, error: deadlinesError } = await supabase
+        .from("admin_deadlines")
+        .select("*")
+        .eq("is_active", true)
+        .order("deadline_date", { ascending: true })
+
+      if (deadlinesError) {
+        console.error("Error loading deadlines:", deadlinesError)
+      } else {
+        setDeadlines(deadlinesData || [])
+      }
+
+      const { data: classesData, error: classesError } = await supabase.from("classes").select("name").order("name")
+
+      if (classesError) {
+        console.error("Error loading classes:", classesError)
+      } else {
+        setClasses(classesData?.map((c) => c.name) || [])
+      }
+    } catch (error) {
+      console.error("Error loading data:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSetDeadline = async () => {
+    if (!deadlineForm.deadline_type || !deadlineForm.deadline_date) {
+      alert("Please fill all required fields")
+      return
+    }
+
+    try {
+      await supabase
+        .from("admin_deadlines")
+        .update({ is_active: false })
+        .eq("deadline_type", deadlineForm.deadline_type)
+        .eq("academic_year", deadlineForm.academic_year)
+        .eq("term", deadlineForm.term)
+
+      const { error } = await supabase.from("admin_deadlines").insert({
+        deadline_type: deadlineForm.deadline_type,
+        deadline_date: deadlineForm.deadline_date,
+        academic_year: deadlineForm.academic_year,
+        term: deadlineForm.term,
+        created_by: 1,
+        is_active: true,
+      })
+
+      if (error) {
+        console.error("Error setting deadline:", error)
+        alert("Error setting deadline: " + error.message)
+      } else {
+        alert("Deadline set successfully!")
+        setShowDeadlineForm(false)
+        setDeadlineForm({
+          deadline_type: "",
+          deadline_date: "",
+          academic_year: "2024-2025",
+          term: "Second Term",
+        })
+        loadData()
+      }
+    } catch (error) {
+      console.error("Error setting deadline:", error)
+      alert("Error setting deadline")
+    }
+  }
+
+  const getDeadlineStatus = (deadline: Deadline) => {
     const now = new Date()
-    const deadline = deadlines[type]
-    const diff = deadline.getTime() - now.getTime()
-    if (diff <= 0) return "Deadline passed"
+    const deadlineDate = new Date(deadline.deadline_date)
+    const isExpired = deadlineDate < now
+
+    if (isExpired) {
+      return { status: "Deadline passed", color: "text-red-600", bgColor: "bg-red-50" }
+    }
+
+    const diff = deadlineDate.getTime() - now.getTime()
     const days = Math.floor(diff / (1000 * 60 * 60 * 24))
     const hours = Math.floor((diff / (1000 * 60 * 60)) % 24)
-    const minutes = Math.floor((diff / (1000 * 60)) % 60)
-    return `${days}d ${hours}h ${minutes}m left`
-  }
 
-  const handleUpload = (type: "exam" | "enotes") => {
-    const name = userRole === "teacher" ? "Mr. John" : "Admin"
-    const newUpload = {
-      type,
-      name,
-      subject: selectedSubject,
-      file: type === "exam" ? examFile : enotesFile,
-    }
-
-    setTeachersUploaded((prev) => [...prev, newUpload])
-
-    // Update global upload status for communications
-    const currentStatus = JSON.parse(localStorage.getItem("upload_status") || "{}")
-    const uploadKey = `${type}Uploads`
-    const updatedStatus = {
-      ...currentStatus,
-      [uploadKey]: (currentStatus[uploadKey] || []).map((upload: any) =>
-        upload.teacher === name && upload.subject === selectedSubject
-          ? { ...upload, status: "submitted", date: new Date().toISOString().split("T")[0] }
-          : upload,
-      ),
-    }
-    localStorage.setItem("upload_status", JSON.stringify(updatedStatus))
-
-    alert(`${type} uploaded successfully by ${name}!`)
-
-    // Reset form
-    if (type === "exam") {
-      setShowExamForm(false)
-      setExamFile(null)
-    } else {
-      setShowEnoteForm(false)
-      setEnotesFile(null)
+    return {
+      status: `${days}d ${hours}h left`,
+      color: "text-green-600",
+      bgColor: "bg-green-50",
     }
   }
 
-  // Dynamic submission summary logic
-  const teacherSubjectMap = subjects.map((subject) => ({
-    subject,
-    teacher: `Teacher of ${subject}`, // This could be fetched from teacher assignments
-  }))
+  const getUploadStats = (uploadType: string) => {
+    const typeUploads = uploads.filter((u) => u.upload_type === uploadType)
+    const totalUploads = typeUploads.length
+    const classesWithUploads = new Set(typeUploads.map((u) => u.class_name)).size
 
-  const submittedKeys = teachersUploaded.filter((u) => u.type === "exam").map((u) => `${u.name}-${u.subject}`)
+    return { totalUploads, classesWithUploads }
+  }
 
-  const dynamicSummary = teacherSubjectMap.map((row) => ({
-    ...row,
-    submitted: submittedKeys.includes(`${row.teacher}-${row.subject}`),
-  }))
+  const loadSubmissionSummary = async (uploadType: string) => {
+    if (!selectedClass) {
+      if (uploadType === "exam_questions") {
+        setExamSubmissionSummary([])
+      } else {
+        setEnotesSubmissionSummary([])
+      }
+      return
+    }
 
-  // Get current term info
-  const currentTerm = terms.find((term) => term.status === "active")
-  const currentSession = sessions[0] || "2024-2025"
+    try {
+      console.log("Loading submission summary for:", { selectedClass, uploadType })
+
+      // Get all subjects for the selected class with their teachers (including teacher IDs)
+      const { data: subjectsData, error: subjectsError } = await supabase
+        .from("subjects")
+        .select(`
+          name, 
+          teacher_name,
+          teachers!inner(id, first_name, middle_name, surname)
+        `)
+        .eq("target_class", selectedClass)
+        .order("name")
+
+      if (subjectsError) {
+        console.error("Error loading subjects:", subjectsError)
+        return
+      }
+
+      console.log("Subjects for class:", subjectsData)
+
+      // Get uploads for this class and upload type
+      const classUploads = uploads.filter((u) => {
+        return u.upload_type === uploadType && u.class_name === selectedClass
+      })
+
+      console.log("Uploads for class and type:", classUploads)
+
+      // Create summary by combining all subjects with upload status
+      const summary =
+        subjectsData?.map((subject) => {
+          // Find if this teacher/subject has uploaded using teacher_id
+          const upload = classUploads.find(
+            (u) => u.teacher_id === subject.teachers.id && u.subject_name === subject.name,
+          )
+
+          const teacherFullName =
+            `${subject.teachers.first_name} ${subject.teachers.middle_name || ""} ${subject.teachers.surname}`
+              .replace(/\s+/g, " ")
+              .trim()
+
+          return {
+            subject: subject.name,
+            teacher: teacherFullName,
+            submitted: !!upload,
+            uploadDate: upload?.uploaded_at || null,
+            fileName: upload?.file_name || null,
+            upload: upload || null,
+          }
+        }) || []
+
+      console.log("Final summary for", uploadType, ":", summary)
+
+      if (uploadType === "exam_questions") {
+        setExamSubmissionSummary(summary)
+      } else {
+        setEnotesSubmissionSummary(summary)
+      }
+    } catch (error) {
+      console.error("Error in loadSubmissionSummary:", error)
+    }
+  }
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+  }
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64">Loading...</div>
+  }
+
+  const examDeadline = deadlines.find((d) => d.deadline_type === "exam_questions")
+  const enotesDeadline = deadlines.find((d) => d.deadline_type === "e_notes")
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Uploads</h1>
@@ -228,282 +321,403 @@ export function UploadsSection() {
         </div>
         <div className="text-right">
           <div className="text-sm text-gray-500">Current Academic Period</div>
-          <div className="font-semibold text-blue-600">{currentSession}</div>
-          <div className="text-sm text-green-600">{currentTerm?.name || "No Active Term"}</div>
+          <div className="font-semibold text-blue-600">2024-2025</div>
+          <div className="text-sm text-green-600">Second Term</div>
         </div>
       </div>
 
-      {deadlines.exam.getTime() !== new Date("2025-06-21").getTime() && (
-        <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
-          <p className="text-sm font-medium text-blue-800">
-            📢 Deadline Update: New deadlines have been set by administration
-          </p>
-        </div>
-      )}
+      {/* Deadline Management */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Deadline Management
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {/* Exam Questions Deadline */}
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold">Exam Questions</h3>
+                {examDeadline && (
+                  <Badge variant="outline" className={getDeadlineStatus(examDeadline).color}>
+                    {getDeadlineStatus(examDeadline).status}
+                  </Badge>
+                )}
+              </div>
+              {examDeadline ? (
+                <p className="text-sm text-gray-600">
+                  Deadline: {new Date(examDeadline.deadline_date).toLocaleDateString()} at{" "}
+                  {new Date(examDeadline.deadline_date).toLocaleTimeString()}
+                </p>
+              ) : (
+                <p className="text-sm text-red-600">No deadline set</p>
+              )}
+            </div>
 
-      <Tabs defaultValue="exam" className="w-full">
+            {/* E-Notes Deadline */}
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold">E-Notes</h3>
+                {enotesDeadline && (
+                  <Badge variant="outline" className={getDeadlineStatus(enotesDeadline).color}>
+                    {getDeadlineStatus(enotesDeadline).status}
+                  </Badge>
+                )}
+              </div>
+              {enotesDeadline ? (
+                <p className="text-sm text-gray-600">
+                  Deadline: {new Date(enotesDeadline.deadline_date).toLocaleDateString()} at{" "}
+                  {new Date(enotesDeadline.deadline_date).toLocaleTimeString()}
+                </p>
+              ) : (
+                <p className="text-sm text-red-600">No deadline set</p>
+              )}
+            </div>
+          </div>
+
+          <Button onClick={() => setShowDeadlineForm(!showDeadlineForm)}>
+            {showDeadlineForm ? "Cancel" : "Set New Deadline"}
+          </Button>
+
+          {showDeadlineForm && (
+            <div className="mt-4 p-4 border rounded-lg bg-gray-50">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label>Deadline Type</Label>
+                  <Select
+                    value={deadlineForm.deadline_type}
+                    onValueChange={(value) => setDeadlineForm({ ...deadlineForm, deadline_type: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="exam_questions">Exam Questions</SelectItem>
+                      <SelectItem value="e_notes">E-Notes</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Deadline Date & Time</Label>
+                  <Input
+                    type="datetime-local"
+                    value={deadlineForm.deadline_date}
+                    onChange={(e) => setDeadlineForm({ ...deadlineForm, deadline_date: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <Label>Academic Year</Label>
+                  <Input
+                    value={deadlineForm.academic_year}
+                    onChange={(e) => setDeadlineForm({ ...deadlineForm, academic_year: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <Label>Term</Label>
+                  <Select
+                    value={deadlineForm.term}
+                    onValueChange={(value) => setDeadlineForm({ ...deadlineForm, term: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="First Term">First Term</SelectItem>
+                      <SelectItem value="Second Term">Second Term</SelectItem>
+                      <SelectItem value="Third Term">Third Term</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button onClick={handleSetDeadline} className="mt-4">
+                Set Deadline
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Upload Tabs */}
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList>
           <TabsTrigger value="exam">Exam Questions</TabsTrigger>
           <TabsTrigger value="enotes">E-Notes</TabsTrigger>
         </TabsList>
 
-        {/* ------------------- EXAM UPLOAD ------------------- */}
+        {/* Exam Questions Tab */}
         <TabsContent value="exam" className="mt-4 space-y-4">
-          <Button onClick={() => setShowExamForm(true)} disabled={isDeadlinePassed("exam")}>
-            Upload Exam Questions
-          </Button>
-          <p className="text-xs text-gray-600">
-            Deadline: {deadlines.exam.toDateString()} ({countdownMessage("exam")})
-          </p>
-
-          {showExamForm && (
-            <div className="grid grid-cols-2 gap-4 border p-4 rounded-md">
-              <div className="space-y-2">
-                <Label>Session</Label>
-                <Select onValueChange={setSelectedSession} value={selectedSession}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select session" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sessions.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Label>Term</Label>
-                <Select onValueChange={setSelectedTerm} value={selectedTerm}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select term" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {terms.map((t) => (
-                      <SelectItem key={t.id.toString()} value={t.name.toLowerCase().replace(" ", "-")}>
-                        <div className="flex items-center justify-between w-full">
-                          <span>{t.name}</span>
-                          {t.status === "active" && (
-                            <span className="ml-2 px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
-                              Current
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Label>Class</Label>
-                <Select onValueChange={setSelectedClass} value={selectedClass}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Label>Subject</Label>
-                <Select onValueChange={setSelectedSubject} value={selectedSubject} disabled={!selectedClass}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={selectedClass ? "Select subject" : "Select class first"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjects.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!selectedClass && (
-                  <p className="text-xs text-amber-600">💡 Select a class to see available subjects</p>
-                )}
+          <div className="flex items-center justify-between">
+            <Button>Upload Exam Questions</Button>
+            {examDeadline && (
+              <div
+                className={`px-3 py-1 rounded-full text-sm ${getDeadlineStatus(examDeadline).bgColor} ${getDeadlineStatus(examDeadline).color}`}
+              >
+                Deadline: {new Date(examDeadline.deadline_date).toDateString()} (
+                {getDeadlineStatus(examDeadline).status})
               </div>
-
-              <div className="space-y-2">
-                <Label>Upload DOCX File</Label>
-                <Input type="file" accept=".docx" onChange={(e) => setExamFile(e.target.files?.[0] || null)} />
-                <Button onClick={() => handleUpload("exam")} className="mt-4" disabled={!selectedSubject || !examFile}>
-                  Submit Exam Upload
-                </Button>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-4">
-            <h3 className="font-semibold text-md mb-2">
-              Uploaded Exams for: {selectedTerm || currentTerm?.name || "Term"} [{selectedSession || currentSession}]
-            </h3>
-            <ul className="text-sm text-muted-foreground list-disc ml-6">
-              {teachersUploaded
-                .filter((t) => t.type === "exam")
-                .map((u, i) => (
-                  <li key={i}>
-                    <strong>{u.name}</strong> — {u.subject} —{" "}
-                    {u.file && (
-                      <a href={URL.createObjectURL(u.file)} download={u.file.name} className="text-blue-600 underline">
-                        {u.file.name}
-                      </a>
-                    )}
-                  </li>
-                ))}
-            </ul>
+            )}
           </div>
 
-          {/* 🧾 SUBMISSION SUMMARY TABLE */}
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">Total Uploads</p>
+                    <p className="text-2xl font-bold">{getUploadStats("exam_questions").totalUploads}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-green-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">Classes Covered</p>
+                    <p className="text-2xl font-bold">{getUploadStats("exam_questions").classesWithUploads}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-orange-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">Deadline Status</p>
+                    <p className="text-lg font-bold">
+                      {examDeadline ? getDeadlineStatus(examDeadline).status : "No deadline"}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Submission Summary */}
           <div className="mt-8">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
-              Submission Summary for {selectedClass || "Class"} - {selectedTerm || currentTerm?.name || "Term"} [
-              {selectedSession || currentSession}]
+              Submission Summary for Class - Second Term [2024-2025]
             </h2>
-            {selectedClass ? (
-              <table className="w-full border text-sm">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="text-left px-4 py-2 border">Subject</th>
-                    <th className="text-left px-4 py-2 border">Teacher</th>
-                    <th className="text-left px-4 py-2 border">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dynamicSummary.map((row, i) => (
-                    <tr key={i} className={row.submitted ? "bg-green-50" : "bg-red-50"}>
-                      <td className="px-4 py-2 border">{row.subject}</td>
-                      <td className="px-4 py-2 border">{row.teacher}</td>
-                      <td className="px-4 py-2 border">
-                        <span
-                          className={`px-2 py-1 text-xs font-medium rounded-full ${row.submitted ? "bg-green-200 text-green-800" : "bg-red-200 text-red-800"}`}
-                        >
-                          {row.submitted ? "Submitted" : "Not Submitted"}
-                        </span>
-                      </td>
-                    </tr>
+
+            <div className="mb-4">
+              <Select value={selectedClass} onValueChange={setSelectedClass}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Select a class to view submission summary" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes.map((className) => (
+                    <SelectItem key={className} value={className}>
+                      {className}
+                    </SelectItem>
                   ))}
-                </tbody>
-              </table>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedClass ? (
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="text-left px-4 py-2 border">Subject</th>
+                      <th className="text-left px-4 py-2 border">Teacher</th>
+                      <th className="text-left px-4 py-2 border">File Name</th>
+                      <th className="text-left px-4 py-2 border">Status</th>
+                      <th className="text-left px-4 py-2 border">Upload Date</th>
+                      <th className="text-left px-4 py-2 border">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {examSubmissionSummary.length > 0 ? (
+                      examSubmissionSummary.map((row, i) => (
+                        <tr key={i} className={row.submitted ? "bg-green-50" : "bg-yellow-50"}>
+                          <td className="px-4 py-2 border">{row.subject}</td>
+                          <td className="px-4 py-2 border font-medium">{row.teacher}</td>
+                          <td className="px-4 py-2 border text-sm">{row.fileName || "-"}</td>
+                          <td className="px-4 py-2 border">
+                            <Badge variant={row.submitted ? "default" : "secondary"}>
+                              {row.submitted ? "Submitted" : "Pending"}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-2 border">
+                            {row.uploadDate ? new Date(row.uploadDate).toLocaleDateString() : "-"}
+                          </td>
+                          <td className="px-4 py-2 border">
+                            {row.submitted && row.upload ? (
+                              <Button size="sm" variant="outline" onClick={() => handleDownload(row.upload)}>
+                                <Download className="h-4 w-4 mr-1" />
+                                Download
+                              </Button>
+                            ) : (
+                              <span className="text-gray-400 text-sm">No file</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                          {selectedClass ? "Loading submission data..." : "No uploads found for " + selectedClass}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             ) : (
-              <div className="p-4 bg-gray-50 border rounded-lg text-center">
-                <p className="text-gray-600">Select a class to view submission summary</p>
+              <div className="p-8 text-center text-gray-500 border rounded-lg">
+                Select a class to view submission summary
               </div>
             )}
           </div>
         </TabsContent>
 
-        {/* ------------------- ENOTES UPLOAD ------------------- */}
+        {/* E-Notes Tab */}
         <TabsContent value="enotes" className="mt-4 space-y-4">
-          <Button onClick={() => setShowEnoteForm(true)} disabled={isDeadlinePassed("enotes")}>
-            Upload E-Notes
-          </Button>
-          <p className="text-xs text-gray-600">
-            Deadline: {deadlines.enotes.toDateString()} ({countdownMessage("enotes")})
-          </p>
-
-          {showEnoteForm && (
-            <div className="grid grid-cols-2 gap-4 border p-4 mt-4 rounded-md">
-              <div className="space-y-2">
-                <Label>Session</Label>
-                <Select onValueChange={setSelectedSession} value={selectedSession}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select session" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sessions.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Label>Term</Label>
-                <Select onValueChange={setSelectedTerm} value={selectedTerm}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select term" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {terms.map((t) => (
-                      <SelectItem key={t.id.toString()} value={t.name.toLowerCase().replace(" ", "-")}>
-                        <div className="flex items-center justify-between w-full">
-                          <span>{t.name}</span>
-                          {t.status === "active" && (
-                            <span className="ml-2 px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
-                              Current
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Label>Week</Label>
-                <Select onValueChange={(val) => setSelectedWeek(Number(val))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select week" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {weeks.map((w) => (
-                      <SelectItem key={w} value={String(w)}>{`Week ${w}`}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Label>Class</Label>
-                <Select onValueChange={setSelectedClass} value={selectedClass}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Label>Subject</Label>
-                <Select onValueChange={setSelectedSubject} value={selectedSubject} disabled={!selectedClass}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={selectedClass ? "Select subject" : "Select class first"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjects.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Label>Topic</Label>
-                <Input
-                  type="text"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder="Enter lesson topic"
-                />
+          <div className="flex items-center justify-between">
+            <Button>Upload E-Notes</Button>
+            {enotesDeadline && (
+              <div
+                className={`px-3 py-1 rounded-full text-sm ${getDeadlineStatus(enotesDeadline).bgColor} ${getDeadlineStatus(enotesDeadline).color}`}
+              >
+                Deadline: {new Date(enotesDeadline.deadline_date).toDateString()} (
+                {getDeadlineStatus(enotesDeadline).status})
               </div>
+            )}
+          </div>
 
-              <div className="space-y-2">
-                <Label>Upload PDF File</Label>
-                <Input type="file" accept=".pdf" onChange={(e) => setEnotesFile(e.target.files?.[0] || null)} />
-                <Button
-                  onClick={() => handleUpload("enotes")}
-                  className="mt-4"
-                  disabled={!selectedSubject || !enotesFile || !topic}
-                >
-                  Submit E-Note Upload
-                </Button>
-              </div>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">Total Uploads</p>
+                    <p className="text-2xl font-bold">{getUploadStats("e_notes").totalUploads}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-green-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">Classes Covered</p>
+                    <p className="text-2xl font-bold">{getUploadStats("e_notes").classesWithUploads}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-orange-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">Deadline Status</p>
+                    <p className="text-lg font-bold">
+                      {enotesDeadline ? getDeadlineStatus(enotesDeadline).status : "No deadline"}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* E-Notes Submission Summary */}
+          <div className="mt-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              E-Notes Submission Summary for Class - Second Term [2024-2025]
+            </h2>
+
+            <div className="mb-4">
+              <Select value={selectedClass} onValueChange={setSelectedClass}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Select a class to view submission summary" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes.map((className) => (
+                    <SelectItem key={className} value={className}>
+                      {className}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          )}
+
+            {selectedClass ? (
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="text-left px-4 py-2 border">Subject</th>
+                      <th className="text-left px-4 py-2 border">Teacher</th>
+                      <th className="text-left px-4 py-2 border">File Name</th>
+                      <th className="text-left px-4 py-2 border">Week</th>
+                      <th className="text-left px-4 py-2 border">Status</th>
+                      <th className="text-left px-4 py-2 border">Upload Date</th>
+                      <th className="text-left px-4 py-2 border">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {enotesSubmissionSummary.length > 0 ? (
+                      enotesSubmissionSummary.map((row, i) => (
+                        <tr key={i} className={row.submitted ? "bg-green-50" : "bg-yellow-50"}>
+                          <td className="px-4 py-2 border">{row.subject}</td>
+                          <td className="px-4 py-2 border font-medium">{row.teacher}</td>
+                          <td className="px-4 py-2 border text-sm">{row.fileName || "-"}</td>
+                          <td className="px-4 py-2 border">{row.upload?.week || "-"}</td>
+                          <td className="px-4 py-2 border">
+                            <Badge variant={row.submitted ? "default" : "secondary"}>
+                              {row.submitted ? "Submitted" : "Pending"}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-2 border">
+                            {row.uploadDate ? new Date(row.uploadDate).toLocaleDateString() : "-"}
+                          </td>
+                          <td className="px-4 py-2 border">
+                            {row.submitted && row.upload ? (
+                              <Button size="sm" variant="outline" onClick={() => handleDownload(row.upload)}>
+                                <Download className="h-4 w-4 mr-1" />
+                                Download
+                              </Button>
+                            ) : (
+                              <span className="text-gray-400 text-sm">No file</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                          {selectedClass ? "Loading submission data..." : "No e-notes found for " + selectedClass}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-gray-500 border rounded-lg">
+                Select a class to view submission summary
+              </div>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
     </div>

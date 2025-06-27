@@ -1,20 +1,14 @@
 "use client"
-
-import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import Dashboard from "@/components/dashboard/dashboard"
 import TeacherDashboard from "@/components/teacher-dashboard/teacher-dashboard"
+import { StudentDashboard } from "@/components/student-dashboard/student-dashboard"
 import LoginPage from "@/login-page"
 
 export default function Home() {
   const { user, isLoading, logout } = useAuth()
   const router = useRouter()
-
-  useEffect(() => {
-    // Don't redirect automatically - let users stay where they are
-    // Only redirect if they're not logged in and trying to access a protected route
-  }, [user, isLoading, router])
 
   if (isLoading) {
     return (
@@ -37,17 +31,7 @@ export default function Home() {
   }
 
   if (user.userType === "student") {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Student Dashboard</h1>
-          <p className="text-gray-600 mb-4">Welcome, {user.firstName}!</p>
-          <button onClick={() => logout()} className="bg-red-500 text-white px-4 py-2 rounded">
-            Logout
-          </button>
-        </div>
-      </div>
-    )
+    return <StudentDashboard />
   }
 
   // Default to admin dashboard

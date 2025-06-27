@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Users, TrendingUp, Loader2 } from "lucide-react"
+import { Users, TrendingUp, Loader2, BookOpen } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useTeacherAuth } from "@/contexts/teacher-auth-context"
 
@@ -24,8 +24,7 @@ interface ClassData {
   section: string
   academic_year: string
   current_students: number
-  subjects_count: number
-  subjects: string[]
+  subjects_taught: string[]
   students: Student[]
 }
 
@@ -63,84 +62,88 @@ export function MyClassesSection() {
     setError(null)
 
     try {
-      console.log("=== DEBUGGING TEACHER CLASSES ===")
+      console.log("=== FETCHING CLASSES WHERE TEACHER TEACHES SUBJECTS ===")
       console.log("Teacher object:", teacher)
-      console.log("Looking for classes with teacher_id:", teacher.id)
 
-      // Fetch classes where this teacher is assigned (using teacher_id foreign key)
-      const { data: classesData, error: classesError } = await supabase
-        .from("classes")
-        .select("*")
+      // Get all subjects this teacher teaches (this gives us the classes)
+      const { data: subjectsData, error: subjectsError } = await supabase
+        .from("subjects")
+        .select("name, target_class")
         .eq("teacher_id", teacher.id)
         .eq("status", "Active")
 
-      console.log("Classes query result:", { classesData, classesError })
+      console.log("Subjects taught by teacher:", subjectsData)
 
-      if (classesError) {
-        console.error("Database error:", classesError)
-        setError(`Database error: ${classesError.message}`)
+      if (subjectsError) {
+        console.error("Error fetching subjects:", subjectsError)
+        setError(`Error fetching subjects: ${subjectsError.message}`)
         return
       }
 
-      if (!classesData || classesData.length === 0) {
-        console.log("No classes found for teacher_id:", teacher.id)
-
-        // Debug: Show all classes to see what teacher_ids exist
-        const { data: allClasses } = await supabase.from("classes").select("id, name, teacher_id").limit(10)
-        console.log("All classes in database:", allClasses)
-
+      if (!subjectsData || subjectsData.length === 0) {
+        console.log("No subjects assigned to teacher")
         setClasses([])
         setLoading(false)
         return
       }
 
-      console.log("Found classes for teacher:", classesData)
+      // Get unique classes from subjects
+      const uniqueClasses = [...new Set(subjectsData.map((subject) => subject.target_class))]
+      console.log("Unique classes where teacher teaches:", uniqueClasses)
 
-      // For each class, get students and other details
+      // For each class, get class details and subjects taught there
       const classesWithDetails = await Promise.all(
-        classesData.map(async (classItem) => {
-          console.log(`Getting details for class: ${classItem.name}`)
+        uniqueClasses.map(async (className) => {
+          console.log(`Getting details for class: ${className}`)
 
-          // Get students for this class (using class name to match students.class field)
+          // Get class details
+          const { data: classData, error: classError } = await supabase
+            .from("classes")
+            .select("*")
+            .eq("name", className)
+            .single()
+
+          if (classError) {
+            console.error(`Error fetching class ${className}:`, classError)
+            return null
+          }
+
+          // Get subjects taught by this teacher in this class
+          const subjectsTaught = subjectsData
+            .filter((subject) => subject.target_class === className)
+            .map((subject) => subject.name)
+
+          // Get students in this class
           const { data: studentsData, error: studentsError } = await supabase
             .from("students")
             .select("id, roll_no, first_name, middle_name, surname, email, phone, status")
-            .eq("class", classItem.name) // Match by class name
+            .eq("class", className)
             .eq("status", "Active")
             .order("roll_no")
 
-          console.log(`Students for ${classItem.name}:`, studentsData)
+          console.log(`Students in ${className}:`, studentsData)
 
           if (studentsError) {
-            console.error(`Error fetching students for ${classItem.name}:`, studentsError)
+            console.error(`Error fetching students for ${className}:`, studentsError)
           }
 
-          // Get subjects for this teacher and class
-          const { data: subjectsData } = await supabase
-            .from("subjects")
-            .select("name")
-            .eq("teacher_id", teacher.id)
-            .eq("target_class", classItem.name)
-            .eq("status", "Active")
-
-          console.log(`Subjects for ${classItem.name}:`, subjectsData)
-
           return {
-            id: classItem.id,
-            name: classItem.name,
-            category: classItem.category || "N/A",
-            section: classItem.section || "N/A",
-            academic_year: classItem.academic_year || "N/A",
-            current_students: classItem.current_students || studentsData?.length || 0,
-            subjects_count: subjectsData?.length || 0,
-            subjects: subjectsData?.map((s) => s.name) || [],
+            id: classData.id,
+            name: classData.name,
+            category: classData.category || "N/A",
+            section: classData.section || "N/A",
+            academic_year: classData.academic_year || "N/A",
+            current_students: studentsData?.length || 0,
+            subjects_taught: subjectsTaught,
             students: studentsData || [],
           }
         }),
       )
 
-      console.log("Final classes with details:", classesWithDetails)
-      setClasses(classesWithDetails)
+      // Filter out null results
+      const validClasses = classesWithDetails.filter(Boolean) as ClassData[]
+      console.log("Final classes where teacher teaches:", validClasses)
+      setClasses(validClasses)
     } catch (error) {
       console.error("Error in fetchTeacherClasses:", error)
       setError(`Error: ${error instanceof Error ? error.message : "Unknown error"}`)
@@ -158,7 +161,7 @@ export function MyClassesSection() {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-2">Loading your classes...</span>
+        <span className="ml-2">Loading classes where you teach...</span>
       </div>
     )
   }
@@ -183,8 +186,8 @@ export function MyClassesSection() {
   if (classes.length === 0) {
     return (
       <div className="text-center py-8">
-        <p className="text-gray-500 mb-2">No classes assigned to you yet.</p>
-        <p className="text-sm text-gray-400">Check the browser console for debugging information.</p>
+        <p className="text-gray-500 mb-2">No subjects assigned to you yet.</p>
+        <p className="text-sm text-gray-400">You need to be assigned subjects to see classes.</p>
         <Button onClick={fetchTeacherClasses} className="mt-4">
           Refresh
         </Button>
@@ -196,7 +199,7 @@ export function MyClassesSection() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">My Classes</h1>
-        <p className="text-gray-600">Manage your assigned classes and students</p>
+        <p className="text-gray-600">Classes where you teach subjects</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -210,7 +213,13 @@ export function MyClassesSection() {
               <CardDescription>
                 {classItem.category} • {classItem.section} • {classItem.academic_year}
                 <br />
-                Subjects: {classItem.subjects.length > 0 ? classItem.subjects.join(", ") : "None assigned"}
+                <div className="flex items-center mt-1">
+                  <BookOpen className="h-3 w-3 mr-1" />
+                  <span className="text-xs">
+                    Teaching:{" "}
+                    {classItem.subjects_taught.length > 0 ? classItem.subjects_taught.join(", ") : "No subjects"}
+                  </span>
+                </div>
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -220,8 +229,8 @@ export function MyClassesSection() {
                   <div className="text-xs text-gray-500">Avg Performance</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">--</div>
-                  <div className="text-xs text-gray-500">Attendance</div>
+                  <div className="text-2xl font-bold text-blue-600">{classItem.subjects_taught.length}</div>
+                  <div className="text-xs text-gray-500">Subjects</div>
                 </div>
               </div>
 
@@ -284,22 +293,29 @@ export function MyClassesSection() {
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Performance Overview - {classItem.name}</DialogTitle>
-                      <DialogDescription>Basic performance metrics for this class</DialogDescription>
+                      <DialogTitle>Teaching Overview - {classItem.name}</DialogTitle>
+                      <DialogDescription>Your teaching metrics for this class</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="text-center p-4 border rounded">
                           <div className="text-2xl font-bold">{classItem.current_students}</div>
-                          <div className="text-sm text-gray-500">Total Students</div>
+                          <div className="text-sm text-gray-500">Students</div>
                         </div>
                         <div className="text-center p-4 border rounded">
-                          <div className="text-2xl font-bold">{classItem.subjects.length}</div>
-                          <div className="text-sm text-gray-500">Subjects Taught</div>
+                          <div className="text-2xl font-bold">{classItem.subjects_taught.length}</div>
+                          <div className="text-sm text-gray-500">Subjects Teaching</div>
                         </div>
                       </div>
-                      <div className="text-center p-4 border rounded">
-                        <p className="text-sm text-gray-500">Detailed performance analytics will be available soon.</p>
+                      <div className="p-4 border rounded">
+                        <h4 className="font-medium mb-2">Subjects You Teach:</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {classItem.subjects_taught.map((subject, index) => (
+                            <Badge key={index} variant="outline">
+                              {subject}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </DialogContent>

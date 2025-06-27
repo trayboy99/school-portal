@@ -12,7 +12,6 @@ import { SubjectsSection } from "./sections/subjects-section"
 import { TimetableSection } from "./sections/timetable-section"
 import { AttendanceSection } from "./sections/attendance-section"
 import { GradesSection } from "./sections/grades-section"
-import { AssignmentsSection } from "./sections/assignments-section"
 import { LibrarySection } from "./sections/library-section"
 import { FinanceSection } from "./sections/finance-section"
 import { CommunicationsSection } from "./sections/communications-section"
@@ -70,8 +69,6 @@ const Dashboard: React.FC = () => {
         return <ResultsSection />
       case "uploads":
         return <UploadsSection />
-      case "assignments":
-        return <AssignmentsSection />
       case "library":
         return <LibrarySection />
       case "finance":

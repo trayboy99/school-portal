@@ -143,24 +143,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq("status", "Active")
           .single()
 
+        console.log("Student lookup result:", { studentData, studentError })
+
         if (!studentError && studentData) {
-          if (password === "student123" || password === "password") {
+          // Check password - use the password_hash field from database
+          if (password === studentData.password_hash || password === "student123" || password === "password") {
             const userData: User = {
               id: `student-${studentData.id}`,
-              username: studentData.email,
+              username: studentData.username || studentData.email,
               email: studentData.email,
               firstName: studentData.first_name,
               lastName: studentData.surname,
               userType: "student",
               dbId: studentData.id,
-              class: studentData.class,
+              class: studentData.current_class || studentData.class,
               phone: studentData.phone,
             }
+            console.log("Student login successful:", userData)
             setUser(userData)
             localStorage.setItem("user", JSON.stringify(userData))
             setIsLoading(false)
             return true
+          } else {
+            console.log("Student password mismatch. Expected:", studentData.password_hash, "Got:", password)
           }
+        } else {
+          console.log("Student not found or error:", studentError)
         }
       } catch (error) {
         console.log("Student lookup failed:", error)

@@ -44,18 +44,44 @@ export function AllTeachersSection() {
   const loadAllTeachers = async () => {
     try {
       setIsLoading(true)
+      console.log("Loading all teachers from database...")
 
       const { data: teachersData, error } = await supabase.from("teachers").select("*").order("first_name")
 
       if (error) throw error
 
-      // Format teachers data
-      const formattedTeachers =
-        teachersData?.map((teacher) => ({
-          ...teacher,
-          subjects: teacher.subjects ? teacher.subjects.split(",") : [],
-        })) || []
+      console.log("Raw teachers data:", teachersData)
 
+      // Format teachers data - handle subjects properly
+      const formattedTeachers =
+        teachersData?.map((teacher) => {
+          let subjects: string[] = []
+
+          // Handle different subject data formats
+          if (Array.isArray(teacher.subjects)) {
+            subjects = teacher.subjects
+          } else if (typeof teacher.subjects === "string") {
+            subjects = teacher.subjects
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          } else if (teacher.subjects) {
+            // If it's some other format, try to convert to string first
+            subjects = String(teacher.subjects)
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          }
+
+          return {
+            ...teacher,
+            subjects: subjects,
+            middle_name: teacher.middle_name || "",
+            phone: teacher.phone || "N/A",
+          }
+        }) || []
+
+      console.log("Formatted teachers:", formattedTeachers)
       setTeachers(formattedTeachers)
     } catch (error) {
       console.error("Error loading teachers:", error)
@@ -129,13 +155,13 @@ export function AllTeachersSection() {
                 </div>
               </div>
 
-              {teacher.subjects.length > 0 && (
+              {teacher.subjects && teacher.subjects.length > 0 && (
                 <div>
                   <p className="text-sm font-medium text-gray-700 mb-2">Subjects:</p>
                   <div className="flex flex-wrap gap-1">
                     {teacher.subjects.slice(0, 3).map((subject, index) => (
                       <Badge key={index} variant="outline" className="text-xs">
-                        {subject.trim()}
+                        {subject}
                       </Badge>
                     ))}
                     {teacher.subjects.length > 3 && (
@@ -144,6 +170,12 @@ export function AllTeachersSection() {
                       </Badge>
                     )}
                   </div>
+                </div>
+              )}
+
+              {(!teacher.subjects || teacher.subjects.length === 0) && (
+                <div>
+                  <p className="text-sm text-gray-500 italic">No subjects assigned</p>
                 </div>
               )}
             </CardContent>

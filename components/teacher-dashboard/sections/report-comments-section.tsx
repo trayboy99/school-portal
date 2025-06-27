@@ -17,7 +17,7 @@ interface Student {
   middle_name: string
   surname: string
   class: string
-  admission_number: string
+  reg_number: string
 }
 
 interface Comment {
@@ -31,6 +31,15 @@ interface Comment {
   created_at: string
   updated_at: string
   student?: Student
+}
+
+interface Exam {
+  id: number
+  exam_name: string
+  mark_type: string
+  term: string
+  session: string
+  year: string
 }
 
 const COMMENT_TEMPLATES = [
@@ -57,12 +66,17 @@ export function ReportCommentsSection() {
   const [editingComment, setEditingComment] = useState<Comment | null>(null)
   const [newComment, setNewComment] = useState("")
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  const [selectedExam, setSelectedExam] = useState<string>("")
+  const [selectedExamType, setSelectedExamType] = useState<string>("")
+  const [selectedSession, setSelectedSession] = useState<string>("2024-2025")
+  const [exams, setExams] = useState<any[]>([])
+  const [teacherClass, setTeacherClass] = useState<string>("")
 
   useEffect(() => {
     if (teacher) {
       loadStudentsAndComments()
     }
-  }, [teacher, selectedTerm, selectedYear])
+  }, [teacher, selectedExam])
 
   useEffect(() => {
     filterStudents()
@@ -73,12 +87,31 @@ export function ReportCommentsSection() {
 
     try {
       setIsLoading(true)
-      console.log("Loading students and comments...")
+      console.log("Loading teacher's assigned class and students...")
 
-      // Get students from teacher's classes
+      // First, get teacher's assigned class
+      const { data: classData, error: classError } = await supabase
+        .from("classes")
+        .select("name")
+        .eq("teacher_id", teacher.id)
+        .single()
+
+      if (classError) {
+        console.log("No class assigned to teacher")
+        setStudents([])
+        setComments([])
+        setIsLoading(false)
+        return
+      }
+
+      setTeacherClass(classData.name)
+
+      // Get students from teacher's assigned class only
       const { data: studentsData, error: studentsError } = await supabase
         .from("students")
-        .select("id, first_name, middle_name, surname, class, admission_number")
+        .select("id, first_name, middle_name, surname, class, reg_number")
+        .eq("class", classData.name)
+        .eq("status", "Active")
         .order("first_name")
 
       if (studentsError) {
@@ -89,13 +122,27 @@ export function ReportCommentsSection() {
       console.log("Students data:", studentsData)
       setStudents(studentsData || [])
 
-      // Get existing comments for this term and year
-      const { data: commentsData, error: commentsError } = await supabase
-        .from("report_comments")
-        .select(`
+      // Load available exams
+      const { data: examsData, error: examsError } = await supabase
+        .from("exams")
+        .select("id, exam_name, mark_type, term, session, year")
+        .order("created_at", { ascending: false })
+
+      if (examsError) {
+        console.error("Error loading exams:", examsError)
+      } else {
+        setExams(examsData || [])
+      }
+
+      // Get existing comments for selected filters
+      if (selectedExam) {
+        const { data: commentsData, error: commentsError } = await supabase
+          .from("report_comments")
+          .select(`
           id,
           student_id,
           teacher_id,
+          exam_id,
           term,
           academic_year,
           comment,
@@ -103,17 +150,15 @@ export function ReportCommentsSection() {
           created_at,
           updated_at
         `)
-        .eq("teacher_id", teacher.id)
-        .eq("term", selectedTerm)
-        .eq("academic_year", selectedYear)
+          .eq("teacher_id", teacher.id)
+          .eq("exam_id", selectedExam)
 
-      if (commentsError) {
-        console.error("Error loading comments:", commentsError)
-        return
+        if (commentsError) {
+          console.error("Error loading comments:", commentsError)
+        } else {
+          setComments(commentsData || [])
+        }
       }
-
-      console.log("Comments data:", commentsData)
-      setComments(commentsData || [])
     } catch (error) {
       console.error("Error in loadStudentsAndComments:", error)
     } finally {
@@ -130,7 +175,7 @@ export function ReportCommentsSection() {
           `${student.first_name} ${student.middle_name} ${student.surname}`
             .toLowerCase()
             .includes(searchTerm.toLowerCase()) ||
-          student.admission_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          student.reg_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
           student.class.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
@@ -143,9 +188,15 @@ export function ReportCommentsSection() {
   }
 
   const handleSaveComment = async () => {
-    if (!teacher || !selectedStudent || !newComment.trim()) return
+    if (!teacher || !selectedStudent || !newComment.trim() || !selectedExam) {
+      alert("Please select exam and enter comment")
+      return
+    }
 
     try {
+      const selectedExamData = exams.find((exam) => exam.id.toString() === selectedExam)
+      if (!selectedExamData) return
+
       const existingComment = getStudentComment(selectedStudent.id)
 
       if (existingComment) {
@@ -164,8 +215,9 @@ export function ReportCommentsSection() {
         const { error } = await supabase.from("report_comments").insert({
           student_id: selectedStudent.id,
           teacher_id: teacher.id,
-          term: selectedTerm,
-          academic_year: selectedYear,
+          exam_id: Number.parseInt(selectedExam),
+          term: selectedExamData.term,
+          academic_year: selectedExamData.session,
           comment: newComment,
           comment_type: "general",
         })
@@ -245,112 +297,168 @@ export function ReportCommentsSection() {
           <CardTitle className="text-lg">Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search students by name, admission number, or class..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+            {/* Exam Selection */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Exam *</label>
+              <select
+                value={selectedExam}
+                onChange={(e) => {
+                  setSelectedExam(e.target.value)
+                  const exam = exams.find((ex) => ex.id.toString() === e.target.value)
+                  if (exam) {
+                    setSelectedExamType(exam.mark_type)
+                    setSelectedTerm(exam.term)
+                    setSelectedSession(exam.session)
+                  }
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">Select Exam</option>
+                {exams.map((exam) => (
+                  <option key={exam.id} value={exam.id}>
+                    {exam.exam_name}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* Term Filter */}
-            <div className="w-full md:w-40">
-              <select
+            {/* Exam Type (Auto-filled) */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Exam Type</label>
+              <input
+                type="text"
+                value={selectedExamType}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+                placeholder="Auto-filled from exam"
+              />
+            </div>
+
+            {/* Term (Auto-filled) */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Term</label>
+              <input
+                type="text"
                 value={selectedTerm}
-                onChange={(e) => setSelectedTerm(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                <option value="First Term">First Term</option>
-                <option value="Second Term">Second Term</option>
-                <option value="Third Term">Third Term</option>
-              </select>
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+                placeholder="Auto-filled from exam"
+              />
             </div>
 
-            {/* Year Filter */}
-            <div className="w-full md:w-32">
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                <option value="2024/2025">2024/2025</option>
-                <option value="2023/2024">2023/2024</option>
-              </select>
+            {/* Session (Auto-filled) */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Session</label>
+              <input
+                type="text"
+                value={selectedSession}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+                placeholder="Auto-filled from exam"
+              />
+            </div>
+
+            {/* Class (Teacher's Assigned Class) */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">Class</label>
+              <input
+                type="text"
+                value={teacherClass}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+                placeholder="Your assigned class"
+              />
             </div>
           </div>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search students by name or reg number..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          {!selectedExam && (
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                <strong>Please select an exam first</strong> to load students and add comments.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Students List */}
-      <div className="grid grid-cols-1 gap-4">
-        {filteredStudents.map((student) => {
-          const comment = getStudentComment(student.id)
-          const studentName = [student.first_name, student.middle_name, student.surname].filter(Boolean).join(" ")
+      {selectedExam && (
+        <div className="grid grid-cols-1 gap-4">
+          {filteredStudents.map((student) => {
+            const comment = getStudentComment(student.id)
+            const studentName = [student.first_name, student.middle_name, student.surname].filter(Boolean).join(" ")
 
-          return (
-            <Card key={student.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="bg-green-100 p-2 rounded-full">
-                      <User className="h-5 w-5 text-green-600" />
+            return (
+              <Card key={student.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="bg-green-100 p-2 rounded-full">
+                        <User className="h-5 w-5 text-green-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-gray-900">{studentName}</h3>
+                        <p className="text-sm text-gray-600">
+                          {student.reg_number} • {student.class}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-medium text-gray-900">{studentName}</h3>
-                      <p className="text-sm text-gray-600">
-                        {student.admission_number} • {student.class}
+
+                    <div className="flex items-center space-x-2">
+                      {comment ? (
+                        <>
+                          <Badge variant="default" className="text-xs">
+                            Comment Added
+                          </Badge>
+                          <Button variant="outline" size="sm" onClick={() => handleEditComment(comment)}>
+                            <Edit className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedStudent(student)
+                            setNewComment("")
+                            setEditingComment(null)
+                            setIsAddingComment(true)
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add Comment
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {comment && (
+                    <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-700">{comment.comment}</p>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Last updated: {new Date(comment.updated_at).toLocaleDateString()}
                       </p>
                     </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    {comment ? (
-                      <>
-                        <Badge variant="default" className="text-xs">
-                          Comment Added
-                        </Badge>
-                        <Button variant="outline" size="sm" onClick={() => handleEditComment(comment)}>
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedStudent(student)
-                          setNewComment("")
-                          setEditingComment(null)
-                          setIsAddingComment(true)
-                        }}
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        Add Comment
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {comment && (
-                  <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-700">{comment.comment}</p>
-                    <p className="text-xs text-gray-500 mt-2">
-                      Last updated: {new Date(comment.updated_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
 
       {/* No Results */}
       {filteredStudents.length === 0 && !isLoading && (
