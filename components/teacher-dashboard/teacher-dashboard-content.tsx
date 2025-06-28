@@ -1,167 +1,193 @@
 "use client"
 
-import { useTeacherAuth } from "@/contexts/teacher-auth-context"
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Users, BookOpen, Calendar, MessageSquare, FileText, Clock } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useTeacherAuth } from "@/contexts/teacher-auth-context"
+
+// Import all sections
+import { MyClassesSection } from "./sections/my-classes-section"
+import { MySubjectsSection } from "./sections/my-subjects-section"
+import { AllTeachersSection } from "./sections/all-teachers-section"
+import { MarksEntrySection } from "./sections/marks-entry-section"
+import { AttendanceSection } from "./sections/attendance-section"
+import { AssignmentsSection } from "./sections/assignments-section"
+import { TimetableSection } from "./sections/timetable-section"
+import { UploadsSection } from "./sections/uploads-section"
+import { CommunicationsSection } from "./sections/communications-section"
+import { StudentPerformanceSection } from "./sections/student-performance-section"
+import { ReportCommentsSection } from "./sections/report-comments-section"
+import { SettingsSection } from "./sections/settings-section"
 
 export function TeacherDashboardContent() {
   const { teacher } = useTeacherAuth()
+  const [activeSection, setActiveSection] = useState("dashboard")
 
-  if (!teacher) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading teacher information...</p>
-      </div>
-    )
+  const renderSection = () => {
+    switch (activeSection) {
+      case "my-classes":
+        return <MyClassesSection />
+      case "my-subjects":
+        return <MySubjectsSection />
+      case "all-teachers":
+        return <AllTeachersSection />
+      case "marks-entry":
+        return <MarksEntrySection />
+      case "attendance":
+        return <AttendanceSection />
+      case "assignments":
+        return <AssignmentsSection />
+      case "timetable":
+        return <TimetableSection />
+      case "uploads":
+        return <UploadsSection />
+      case "communications":
+        return <CommunicationsSection />
+      case "student-performance":
+        return <StudentPerformanceSection />
+      case "report-comments":
+        return <ReportCommentsSection />
+      case "settings":
+        return <SettingsSection />
+      default:
+        return (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                Welcome back, {teacher?.first_name} {teacher?.surname}!
+              </h2>
+              <p className="text-gray-600">Here's what's happening in your classes today.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">My Classes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{teacher?.classes?.length || 0}</div>
+                  <p className="text-xs text-muted-foreground">Active classes</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">My Subjects</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{teacher?.subjects?.length || 0}</div>
+                  <p className="text-xs text-muted-foreground">Subjects taught</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Department</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-lg font-bold">{teacher?.department}</div>
+                  <p className="text-xs text-muted-foreground">Your department</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Experience</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-lg font-bold">{teacher?.experience}</div>
+                  <p className="text-xs text-muted-foreground">Years of experience</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quick Actions</CardTitle>
+                  <CardDescription>Common tasks you might want to perform</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start bg-transparent"
+                    onClick={() => setActiveSection("marks-entry")}
+                  >
+                    Enter Student Marks
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start bg-transparent"
+                    onClick={() => setActiveSection("attendance")}
+                  >
+                    Take Attendance
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start bg-transparent"
+                    onClick={() => setActiveSection("uploads")}
+                  >
+                    Upload Materials
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start bg-transparent"
+                    onClick={() => setActiveSection("assignments")}
+                  >
+                    Create Assignment
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Activity</CardTitle>
+                  <CardDescription>Your recent actions in the system</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-sm">Marks entered for JSS 2 Mathematics</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span className="text-sm">Attendance taken for JSS 1 English</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                      <span className="text-sm">Assignment created for JSS 3 Literature</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )
+    }
   }
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg">
-        <h1 className="text-2xl font-bold mb-2">
-          Welcome back, {teacher.first_name} {teacher.middle_name} {teacher.surname}!
-        </h1>
-        <p className="text-blue-100">
-          {teacher.department} Department • {teacher.qualification}
-        </p>
-        <div className="flex gap-4 mt-4">
-          <Badge variant="secondary" className="bg-white/20 text-white">
-            {teacher.employment_type}
-          </Badge>
-          <Badge variant="secondary" className="bg-white/20 text-white">
-            {teacher.experience} Experience
-          </Badge>
-        </div>
-      </div>
+    <div className="container mx-auto px-6 py-8">
+      <Tabs value={activeSection} onValueChange={setActiveSection}>
+        <TabsList className="grid w-full grid-cols-6 lg:grid-cols-12">
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="my-classes">Classes</TabsTrigger>
+          <TabsTrigger value="my-subjects">Subjects</TabsTrigger>
+          <TabsTrigger value="marks-entry">Marks</TabsTrigger>
+          <TabsTrigger value="attendance">Attendance</TabsTrigger>
+          <TabsTrigger value="assignments">Assignments</TabsTrigger>
+          <TabsTrigger value="timetable">Timetable</TabsTrigger>
+          <TabsTrigger value="uploads">Uploads</TabsTrigger>
+          <TabsTrigger value="communications">Messages</TabsTrigger>
+          <TabsTrigger value="student-performance">Performance</TabsTrigger>
+          <TabsTrigger value="report-comments">Comments</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">My Classes</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{teacher.classes?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">{teacher.classes?.join(", ") || "No classes assigned"}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">My Subjects</CardTitle>
-            <BookOpen className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{teacher.subjects?.length || 0}</div>
-            <p className="text-xs text-muted-foreground">{teacher.subjects?.join(", ") || "No subjects assigned"}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Status</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{teacher.status}</div>
-            <p className="text-xs text-muted-foreground">Since {new Date(teacher.hire_date).toLocaleDateString()}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Today's Schedule
-            </CardTitle>
-            <CardDescription>Your classes and activities for today</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="font-medium">English Language</p>
-                  <p className="text-sm text-gray-600">JSS 2A</p>
-                </div>
-                <Badge variant="outline">9:00 AM</Badge>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                <div>
-                  <p className="font-medium">Literature</p>
-                  <p className="text-sm text-gray-600">JSS 3B</p>
-                </div>
-                <Badge variant="outline">11:00 AM</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5" />
-              Recent Messages
-            </CardTitle>
-            <CardDescription>Latest communications and announcements</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <p className="font-medium text-sm">Staff Meeting Reminder</p>
-                <p className="text-xs text-gray-600">Tomorrow at 2:00 PM in the conference room</p>
-              </div>
-              <div className="p-3 bg-green-50 rounded-lg">
-                <p className="font-medium text-sm">Exam Schedule Updated</p>
-                <p className="text-xs text-gray-600">Mid-term exams start next Monday</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Teacher Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Teacher Profile
-          </CardTitle>
-          <CardDescription>Your professional information</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Employee ID</p>
-              <p className="text-lg">{teacher.employee_id}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Email</p>
-              <p className="text-lg">{teacher.email}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Phone</p>
-              <p className="text-lg">{teacher.phone}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">Department</p>
-              <p className="text-lg">{teacher.department}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        <div className="mt-6">{renderSection()}</div>
+      </Tabs>
     </div>
   )
-}
-
-export function TeacherDashboardContentRouter({ activeSection }: { activeSection: string }) {
-  if (activeSection === "dashboard") {
-    return <TeacherDashboardContent />
-  }
-  return <div>Section: {activeSection}</div>
 }

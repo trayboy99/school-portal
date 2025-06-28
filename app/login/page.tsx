@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -11,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/contexts/auth-context"
 import { useTeacherAuth } from "@/contexts/teacher-auth-context"
-import { supabase } from "@/lib/supabase"
+import { useStudentAuth } from "@/contexts/student-auth-context"
 
 export default function LoginPage() {
   const [adminEmail, setAdminEmail] = useState("")
@@ -25,6 +24,7 @@ export default function LoginPage() {
 
   const { user, login: adminLogin } = useAuth()
   const { teacher, login: teacherLogin } = useTeacherAuth()
+  const { student, login: studentLogin } = useStudentAuth()
   const router = useRouter()
 
   useEffect(() => {
@@ -37,9 +37,11 @@ export default function LoginPage() {
         router.push("/")
       } else if (teacher) {
         router.push("/teacher-dashboard")
+      } else if (student) {
+        router.push("/student-dashboard")
       }
     }
-  }, [user, teacher, router, mounted])
+  }, [user, teacher, student, router, mounted])
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -47,28 +49,10 @@ export default function LoginPage() {
 
     try {
       console.log("Admin login attempt:", { adminEmail, adminPassword })
-
-      const { data: adminData, error: adminError } = await supabase
-        .from("users")
-        .select("*")
-        .eq("email", adminEmail)
-        .eq("password_hash", adminPassword)
-        .eq("user_type", "admin")
-        .eq("status", "Active")
-        .single()
-
-      console.log("Admin query result:", { adminData, adminError })
-
-      if (adminData && !adminError) {
-        console.log("Admin login successful")
-        const success = await adminLogin(adminEmail, adminPassword)
-        if (success) {
-          router.push("/")
-        } else {
-          alert("Login failed - invalid credentials")
-        }
+      const success = await adminLogin(adminEmail, adminPassword)
+      if (success) {
+        router.push("/")
       } else {
-        console.log("Admin login failed - invalid credentials")
         alert("Login failed - invalid credentials")
       }
     } catch (error) {
@@ -105,23 +89,10 @@ export default function LoginPage() {
 
     try {
       console.log("Student login attempt:", { studentEmail, studentPassword })
-
-      const { data: studentData, error: studentError } = await supabase
-        .from("students")
-        .select("*")
-        .eq("email", studentEmail)
-        .eq("password_hash", studentPassword)
-        .eq("status", "Active")
-        .single()
-
-      console.log("Student query result:", { studentData, studentError })
-
-      if (studentData && !studentError) {
-        console.log("Student login successful")
-        sessionStorage.setItem("student_session", JSON.stringify(studentData))
+      const success = await studentLogin(studentEmail, studentPassword)
+      if (success) {
         router.push("/student-dashboard")
       } else {
-        console.log("Student login failed - invalid credentials")
         alert("Login failed - invalid credentials")
       }
     } catch (error) {
@@ -167,7 +138,7 @@ export default function LoginPage() {
                       value={adminEmail}
                       onChange={(e) => setAdminEmail(e.target.value)}
                       required
-                      placeholder="admin@school.com"
+                      placeholder="super@school.com"
                     />
                   </div>
                   <div>
@@ -178,7 +149,7 @@ export default function LoginPage() {
                       value={adminPassword}
                       onChange={(e) => setAdminPassword(e.target.value)}
                       required
-                      placeholder="Enter your password"
+                      placeholder="admin123"
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
@@ -205,7 +176,7 @@ export default function LoginPage() {
                       value={teacherEmail}
                       onChange={(e) => setTeacherEmail(e.target.value)}
                       required
-                      placeholder="teacher@school.com"
+                      placeholder="mary.johnson@school.com"
                     />
                   </div>
                   <div>
@@ -216,7 +187,7 @@ export default function LoginPage() {
                       value={teacherPassword}
                       onChange={(e) => setTeacherPassword(e.target.value)}
                       required
-                      placeholder="Enter your password"
+                      placeholder="teacher123"
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
@@ -243,7 +214,7 @@ export default function LoginPage() {
                       value={studentEmail}
                       onChange={(e) => setStudentEmail(e.target.value)}
                       required
-                      placeholder="student@school.com"
+                      placeholder="chioma.okoro@student.com"
                     />
                   </div>
                   <div>
@@ -254,7 +225,7 @@ export default function LoginPage() {
                       value={studentPassword}
                       onChange={(e) => setStudentPassword(e.target.value)}
                       required
-                      placeholder="Enter your password"
+                      placeholder="student123"
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>

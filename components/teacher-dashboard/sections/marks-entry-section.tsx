@@ -1,38 +1,43 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useTeacherAuth } from "@/contexts/teacher-auth-context"
 import { supabase } from "@/lib/supabase"
+import { Loader2, Save, Users } from "lucide-react"
 
 interface Student {
   id: number
-  roll_no: string
-  reg_number: string
   first_name: string
-  middle_name?: string
+  middle_name: string
   surname: string
+  roll_no: string
   current_class: string
-  section: string
 }
 
 interface Exam {
   id: number
   exam_name: string
   exam_type: string
-  term: string
   academic_year: string
+  term: string
+  total_marks: number
 }
 
-interface Score {
+interface StudentScore {
   student_id: number
-  midterm_score?: number
-  terminal_score?: number
+  exam_id: number
+  subject_id: number
+  midterm_score: number
+  terminal_score: number
+  total_score: number
+  grade: string
+  position: number
 }
 
 export function MarksEntrySection() {
@@ -42,38 +47,25 @@ export function MarksEntrySection() {
   const [selectedExam, setSelectedExam] = useState("")
   const [students, setStudents] = useState<Student[]>([])
   const [exams, setExams] = useState<Exam[]>([])
-  const [scores, setScores] = useState<Record<number, Score>>({})
+  const [scores, setScores] = useState<{ [key: string]: { midterm: string; terminal: string } }>({})
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  // Fetch exams when component mounts
   useEffect(() => {
     fetchExams()
   }, [])
 
-  // Fetch students when class is selected
   useEffect(() => {
     if (selectedClass) {
       fetchStudents()
     }
   }, [selectedClass])
 
-  // Fetch existing scores when exam and class are selected
-  useEffect(() => {
-    if (selectedClass && selectedExam && selectedSubject) {
-      fetchExistingScores()
-    }
-  }, [selectedClass, selectedExam, selectedSubject])
-
   const fetchExams = async () => {
     try {
       const { data, error } = await supabase.from("exams").select("*").order("created_at", { ascending: false })
 
-      if (error) {
-        console.error("Error fetching exams:", error)
-        return
-      }
-
+      if (error) throw error
       setExams(data || [])
     } catch (error) {
       console.error("Error fetching exams:", error)
@@ -83,25 +75,29 @@ export function MarksEntrySection() {
   const fetchStudents = async () => {
     if (!selectedClass) return
 
+    setLoading(true)
     try {
-      setLoading(true)
-      console.log("Fetching students for class:", selectedClass)
-
       const { data, error } = await supabase
         .from("students")
-        .select("id, roll_no, reg_number, first_name, middle_name, surname, current_class, section")
+        .select("id, first_name, middle_name, surname, roll_no, current_class")
         .eq("current_class", selectedClass)
         .eq("status", "Active")
         .order("roll_no")
 
-      console.log("Students query result:", { data, error })
-
-      if (error) {
-        console.error("Error fetching students:", error)
-        return
-      }
-
+      if (error) throw error
       setStudents(data || [])
+
+      // Initialize scores object
+      const initialScores: { [key: string]: { midterm: string; terminal: string } } = {}
+      data?.forEach((student) => {
+        initialScores[student.id] = { midterm: "", terminal: "" }
+      })
+      setScores(initialScores)
+
+      // Fetch existing scores if exam is selected
+      if (selectedExam && selectedSubject) {
+        await fetchExistingScores()
+      }
     } catch (error) {
       console.error("Error fetching students:", error)
     } finally {
@@ -110,150 +106,118 @@ export function MarksEntrySection() {
   }
 
   const fetchExistingScores = async () => {
-    if (!selectedClass || !selectedExam || !selectedSubject) return
+    if (!selectedExam || !selectedSubject) return
 
     try {
       const { data, error } = await supabase
         .from("student_scores")
         .select("student_id, midterm_score, terminal_score")
         .eq("exam_id", selectedExam)
-        .eq("subject", selectedSubject)
+        .eq("subject_id", selectedSubject)
 
-      if (error) {
-        console.error("Error fetching existing scores:", error)
-        return
-      }
+      if (error) throw error
 
-      const scoresMap: Record<number, Score> = {}
-      data?.forEach((score) => {
-        scoresMap[score.student_id] = {
-          student_id: score.student_id,
-          midterm_score: score.midterm_score,
-          terminal_score: score.terminal_score,
+      const existingScores: { [key: string]: { midterm: string; terminal: string } } = {}
+      students.forEach((student) => {
+        const existingScore = data?.find((score) => score.student_id === student.id)
+        existingScores[student.id] = {
+          midterm: existingScore?.midterm_score?.toString() || "",
+          terminal: existingScore?.terminal_score?.toString() || "",
         }
       })
-
-      setScores(scoresMap)
+      setScores(existingScores)
     } catch (error) {
       console.error("Error fetching existing scores:", error)
     }
   }
 
-  const updateScore = (studentId: number, field: "midterm_score" | "terminal_score", value: string) => {
-    const numValue = value === "" ? undefined : Number(value)
+  const handleScoreChange = (studentId: number, type: "midterm" | "terminal", value: string) => {
     setScores((prev) => ({
       ...prev,
       [studentId]: {
         ...prev[studentId],
-        student_id: studentId,
-        [field]: numValue,
+        [type]: value,
       },
     }))
   }
 
+  const calculateGrade = (total: number, maxMarks = 100): string => {
+    const percentage = (total / maxMarks) * 100
+    if (percentage >= 80) return "A"
+    if (percentage >= 70) return "B"
+    if (percentage >= 60) return "C"
+    if (percentage >= 50) return "D"
+    if (percentage >= 40) return "E"
+    return "F"
+  }
+
   const saveScores = async () => {
     if (!selectedExam || !selectedSubject) {
-      alert("Please select an exam and subject")
+      alert("Please select exam and subject")
       return
     }
 
+    setSaving(true)
     try {
-      setSaving(true)
+      const scoresToSave = students.map((student) => {
+        const midterm = Number.parseFloat(scores[student.id]?.midterm || "0")
+        const terminal = Number.parseFloat(scores[student.id]?.terminal || "0")
+        const total = midterm + terminal
+        const selectedExamData = exams.find((exam) => exam.id.toString() === selectedExam)
+        const maxMarks = selectedExamData?.total_marks || 100
 
-      const scoresToSave = Object.values(scores).filter(
-        (score) => score.midterm_score !== undefined || score.terminal_score !== undefined,
-      )
-
-      for (const score of scoresToSave) {
-        const { error } = await supabase.from("student_scores").upsert(
-          {
-            student_id: score.student_id,
-            exam_id: Number(selectedExam),
-            subject: selectedSubject,
-            midterm_score: score.midterm_score,
-            terminal_score: score.terminal_score,
-            teacher_id: teacher?.id,
-          },
-          {
-            onConflict: "student_id,exam_id,subject",
-          },
-        )
-
-        if (error) {
-          console.error("Error saving score:", error)
-          alert(`Error saving scores: ${error.message}`)
-          return
+        return {
+          student_id: student.id,
+          exam_id: Number.parseInt(selectedExam),
+          subject_id: Number.parseInt(selectedSubject),
+          midterm_score: midterm,
+          terminal_score: terminal,
+          total_score: total,
+          grade: calculateGrade(total, maxMarks),
+          position: 0, // Will be calculated later
+          teacher_id: teacher?.id,
         }
-      }
+      })
+
+      const { error } = await supabase.from("student_scores").upsert(scoresToSave, {
+        onConflict: "student_id,exam_id,subject_id",
+      })
+
+      if (error) throw error
 
       alert("Scores saved successfully!")
     } catch (error) {
       console.error("Error saving scores:", error)
-      alert("Error saving scores")
+      alert("Error saving scores. Please try again.")
     } finally {
       setSaving(false)
     }
   }
 
-  if (!teacher) {
-    return (
-      <Card>
-        <CardContent className="p-6">
-          <p>Please log in to access marks entry.</p>
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
     <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900">Marks Entry</h2>
+        <p className="text-gray-600">Enter and manage student examination scores</p>
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>Marks Entry</CardTitle>
+          <CardTitle>Select Parameters</CardTitle>
+          <CardDescription>Choose class, subject, and exam to enter marks</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Teacher Info */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-            <div>
-              <Label className="text-sm font-medium text-gray-600">Teacher ID</Label>
-              <p className="text-lg font-semibold">{teacher.id}</p>
-            </div>
-            <div>
-              <Label className="text-sm font-medium text-gray-600">Assigned Classes</Label>
-              <p className="text-lg font-semibold">{teacher.classes.length} classes</p>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {teacher.classes.map((cls, index) => (
-                  <Badge key={index} variant="secondary" className="text-xs">
-                    {cls}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-            <div>
-              <Label className="text-sm font-medium text-gray-600">Total Subjects</Label>
-              <p className="text-lg font-semibold">{teacher.subjects.length} subjects</p>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {teacher.subjects.map((subject, index) => (
-                  <Badge key={index} variant="outline" className="text-xs">
-                    {subject}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Selection Controls */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="class-select">Select Class</Label>
+              <Label htmlFor="class">Class</Label>
               <Select value={selectedClass} onValueChange={setSelectedClass}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose a class" />
+                  <SelectValue placeholder="Select class" />
                 </SelectTrigger>
                 <SelectContent>
-                  {teacher.classes.map((cls, index) => (
-                    <SelectItem key={index} value={cls}>
-                      {cls}
+                  {teacher?.classes?.map((className) => (
+                    <SelectItem key={className} value={className}>
+                      {className}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -261,14 +225,14 @@ export function MarksEntrySection() {
             </div>
 
             <div>
-              <Label htmlFor="subject-select">Select Subject</Label>
-              <Select value={selectedSubject} onValueChange={setSelectedSubject} disabled={!selectedClass}>
+              <Label htmlFor="subject">Subject</Label>
+              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose a subject" />
+                  <SelectValue placeholder="Select subject" />
                 </SelectTrigger>
                 <SelectContent>
-                  {teacher.subjects.map((subject, index) => (
-                    <SelectItem key={index} value={subject}>
+                  {teacher?.subjects?.map((subject, index) => (
+                    <SelectItem key={index} value={(index + 1).toString()}>
                       {subject}
                     </SelectItem>
                   ))}
@@ -277,95 +241,136 @@ export function MarksEntrySection() {
             </div>
 
             <div>
-              <Label htmlFor="exam-select">Select Exam</Label>
+              <Label htmlFor="exam">Exam</Label>
               <Select value={selectedExam} onValueChange={setSelectedExam}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose an exam" />
+                  <SelectValue placeholder="Select exam" />
                 </SelectTrigger>
                 <SelectContent>
                   {exams.map((exam) => (
                     <SelectItem key={exam.id} value={exam.id.toString()}>
-                      {exam.exam_name} ({exam.exam_type})
+                      {exam.exam_name} - {exam.exam_type}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
-
-          {/* Students List */}
-          {selectedClass && (
-            <div>
-              <h3 className="text-lg font-semibold mb-4">
-                Students in {selectedClass} ({students.length} students)
-              </h3>
-
-              {loading ? (
-                <p>Loading students...</p>
-              ) : students.length === 0 ? (
-                <p>No students found in {selectedClass}</p>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-12 gap-2 font-semibold text-sm bg-gray-100 p-2 rounded">
-                    <div className="col-span-1">Roll No</div>
-                    <div className="col-span-2">Reg Number</div>
-                    <div className="col-span-3">Student Name</div>
-                    <div className="col-span-1">Section</div>
-                    <div className="col-span-2">Midterm Score</div>
-                    <div className="col-span-2">Terminal Score</div>
-                    <div className="col-span-1">Total</div>
-                  </div>
-
-                  {students.map((student) => {
-                    const studentScore = scores[student.id] || {}
-                    const total = (studentScore.midterm_score || 0) + (studentScore.terminal_score || 0)
-
-                    return (
-                      <div key={student.id} className="grid grid-cols-12 gap-2 items-center p-2 border rounded">
-                        <div className="col-span-1 text-sm">{student.roll_no}</div>
-                        <div className="col-span-2 text-sm">{student.reg_number}</div>
-                        <div className="col-span-3 text-sm">
-                          {student.first_name} {student.middle_name} {student.surname}
-                        </div>
-                        <div className="col-span-1 text-sm">{student.section}</div>
-                        <div className="col-span-2">
-                          <Input
-                            type="number"
-                            min="0"
-                            max="50"
-                            placeholder="0-50"
-                            value={studentScore.midterm_score || ""}
-                            onChange={(e) => updateScore(student.id, "midterm_score", e.target.value)}
-                            className="h-8"
-                          />
-                        </div>
-                        <div className="col-span-2">
-                          <Input
-                            type="number"
-                            min="0"
-                            max="50"
-                            placeholder="0-50"
-                            value={studentScore.terminal_score || ""}
-                            onChange={(e) => updateScore(student.id, "terminal_score", e.target.value)}
-                            className="h-8"
-                          />
-                        </div>
-                        <div className="col-span-1 text-sm font-semibold">{total}</div>
-                      </div>
-                    )
-                  })}
-
-                  <div className="flex justify-end mt-4">
-                    <Button onClick={saveScores} disabled={saving || !selectedExam || !selectedSubject}>
-                      {saving ? "Saving..." : "Save Scores"}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </CardContent>
       </Card>
+
+      {selectedClass && students.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Students in {selectedClass}
+            </CardTitle>
+            <CardDescription>Enter midterm and terminal scores for each student</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <span className="ml-2">Loading students...</span>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Roll No</TableHead>
+                      <TableHead>Student Name</TableHead>
+                      <TableHead>Midterm Score</TableHead>
+                      <TableHead>Terminal Score</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Grade</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {students.map((student) => {
+                      const midterm = Number.parseFloat(scores[student.id]?.midterm || "0")
+                      const terminal = Number.parseFloat(scores[student.id]?.terminal || "0")
+                      const total = midterm + terminal
+                      const selectedExamData = exams.find((exam) => exam.id.toString() === selectedExam)
+                      const maxMarks = selectedExamData?.total_marks || 100
+
+                      return (
+                        <TableRow key={student.id}>
+                          <TableCell className="font-medium">{student.roll_no}</TableCell>
+                          <TableCell>
+                            {student.first_name} {student.middle_name} {student.surname}
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="50"
+                              value={scores[student.id]?.midterm || ""}
+                              onChange={(e) => handleScoreChange(student.id, "midterm", e.target.value)}
+                              className="w-20"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="50"
+                              value={scores[student.id]?.terminal || ""}
+                              onChange={(e) => handleScoreChange(student.id, "terminal", e.target.value)}
+                              className="w-20"
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{total.toFixed(1)}</TableCell>
+                          <TableCell>
+                            <span
+                              className={`px-2 py-1 rounded text-sm font-medium ${
+                                calculateGrade(total, maxMarks) === "A"
+                                  ? "bg-green-100 text-green-800"
+                                  : calculateGrade(total, maxMarks) === "B"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : calculateGrade(total, maxMarks) === "C"
+                                      ? "bg-yellow-100 text-yellow-800"
+                                      : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {calculateGrade(total, maxMarks)}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+
+                <div className="flex justify-end">
+                  <Button onClick={saveScores} disabled={saving || !selectedExam || !selectedSubject}>
+                    {saving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" />
+                        Save Scores
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {selectedClass && students.length === 0 && !loading && (
+        <Card>
+          <CardContent className="text-center py-8">
+            <p className="text-gray-500">No students found in the selected class.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
