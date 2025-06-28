@@ -10,8 +10,13 @@ export default function TeacherDashboardPage() {
   const router = useRouter()
 
   useEffect(() => {
+    console.log("=== TEACHER DASHBOARD PAGE ===")
+    console.log("Teacher:", teacher)
+    console.log("IsLoading:", isLoading)
+
     if (!isLoading && !teacher) {
-      router.push("/teacher-login")
+      console.log("No teacher found, redirecting to login")
+      router.push("/login")
     }
   }, [teacher, isLoading, router])
 
@@ -20,15 +25,23 @@ export default function TeacherDashboardPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <p className="mt-4 text-gray-600">Loading teacher dashboard...</p>
         </div>
       </div>
     )
   }
 
   if (!teacher) {
-    return null
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900">Access Denied</h2>
+          <p className="text-gray-600 mt-2">Please log in as a teacher to access this dashboard.</p>
+        </div>
+      </div>
+    )
   }
 
+  console.log("Rendering TeacherDashboard component")
   return <TeacherDashboard />
 }

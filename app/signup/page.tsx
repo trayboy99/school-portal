@@ -1,5 +1,5 @@
-import SignupPage from "../../signup-page"
+import SignupPage from "@/signup-page"
 
-export default function Signup() {
+export default function Page() {
   return <SignupPage />
 }

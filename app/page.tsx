@@ -1,4 +1,5 @@
 "use client"
+
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/auth-context"
 import Dashboard from "@/components/dashboard/dashboard"

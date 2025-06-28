@@ -1,9 +1,8 @@
 "use client"
+
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Upload } from "lucide-react"
-
 import {
   LayoutDashboard,
   Users,
@@ -20,6 +19,7 @@ import {
   Settings,
   X,
   School,
+  Upload,
 } from "lucide-react"
 
 interface SidebarProps {
@@ -95,7 +95,7 @@ export function Sidebar({ isOpen, onClose, activeSection, setActiveSection }: Si
       id: "uploads",
       label: "Uploads",
       icon: Upload,
-      count: 0, // or undefined if not needed
+      count: null,
     },
     {
       id: "library",

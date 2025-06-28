@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,83 +15,114 @@ import { useTeacherAuth } from "@/contexts/teacher-auth-context"
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login: adminLogin } = useAuth()
-  const { login: teacherLogin } = useTeacherAuth()
+  const { login: adminLogin, user } = useAuth()
+  const { login: teacherLogin, teacher } = useTeacherAuth()
 
-  const [adminCredentials, setAdminCredentials] = useState({ username: "", password: "" })
-  const [studentCredentials, setStudentCredentials] = useState({ email: "", password: "" })
-  const [teacherCredentials, setTeacherCredentials] = useState({ email: "", password: "" })
+  const [adminForm, setAdminForm] = useState({ email: "", password: "" })
+  const [studentForm, setStudentForm] = useState({ email: "", password: "" })
+  const [teacherForm, setTeacherForm] = useState({ email: "", password: "" })
 
   const [showAdminPassword, setShowAdminPassword] = useState(false)
   const [showStudentPassword, setShowStudentPassword] = useState(false)
   const [showTeacherPassword, setShowTeacherPassword] = useState(false)
 
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [adminError, setAdminError] = useState("")
+  const [studentError, setStudentError] = useState("")
+  const [teacherError, setTeacherError] = useState("")
+
+  const [adminLoading, setAdminLoading] = useState(false)
+  const [studentLoading, setStudentLoading] = useState(false)
+  const [teacherLoading, setTeacherLoading] = useState(false)
+
+  // Check if already logged in and redirect
+  useEffect(() => {
+    if (user) {
+      if (user.userType === "admin") {
+        router.push("/")
+      } else if (user.userType === "student") {
+        router.push("/student-dashboard")
+      }
+    }
+  }, [user, router])
+
+  useEffect(() => {
+    if (teacher) {
+      console.log("Teacher logged in, redirecting to teacher dashboard")
+      router.push("/teacher-dashboard")
+    }
+  }, [teacher, router])
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
-    setError("")
+    setAdminLoading(true)
+    setAdminError("")
 
     try {
-      const success = await adminLogin(adminCredentials.username, adminCredentials.password)
-      if (success) {
+      const result = await adminLogin(adminForm.email, adminForm.password, "admin")
+      if (result.success) {
         router.push("/")
       } else {
-        setError("Invalid admin credentials")
+        setAdminError(result.error || "Login failed")
       }
     } catch (error) {
-      setError("Login failed. Please try again.")
+      setAdminError("An unexpected error occurred")
     } finally {
-      setIsLoading(false)
+      setAdminLoading(false)
     }
   }
 
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
-    setError("")
+    setStudentLoading(true)
+    setStudentError("")
 
     try {
-      const success = await adminLogin(studentCredentials.email, studentCredentials.password)
-      if (success) {
-        router.push("/")
+      const result = await adminLogin(studentForm.email, studentForm.password, "student")
+      if (result.success) {
+        router.push("/student-dashboard")
       } else {
-        setError("Invalid student credentials")
+        setStudentError(result.error || "Login failed")
       }
     } catch (error) {
-      setError("Login failed. Please try again.")
+      setStudentError("An unexpected error occurred")
     } finally {
-      setIsLoading(false)
+      setStudentLoading(false)
     }
   }
 
   const handleTeacherLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
-    setError("")
+    setTeacherLoading(true)
+    setTeacherError("")
 
     try {
-      const success = await teacherLogin(teacherCredentials.email, teacherCredentials.password)
+      console.log("=== TEACHER LOGIN FORM SUBMIT ===")
+      console.log("Teacher form:", teacherForm)
+
+      const success = await teacherLogin(teacherForm.email, teacherForm.password)
+      console.log("Teacher login result:", success)
+
       if (success) {
-        router.push("/")
+        console.log("Teacher login successful, redirecting to teacher dashboard")
+        // Force navigation
+        window.location.href = "/teacher-dashboard"
       } else {
-        setError("Invalid teacher credentials")
+        setTeacherError("Invalid email or password")
       }
     } catch (error) {
-      setError("Login failed. Please try again.")
+      console.error("Teacher login error:", error)
+      setTeacherError("An unexpected error occurred")
     } finally {
-      setIsLoading(false)
+      setTeacherLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <div className="bg-blue-600 p-3 rounded-full">
+            <div className="bg-green-600 p-3 rounded-full">
               <School className="h-8 w-8 text-white" />
             </div>
           </div>
@@ -121,22 +152,17 @@ export default function LoginPage() {
                 </TabsTrigger>
               </TabsList>
 
-              {error && (
-                <Alert className="mt-4" variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
+              {/* Admin Login */}
               <TabsContent value="admin">
                 <form onSubmit={handleAdminLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="admin-username">Email</Label>
+                    <Label htmlFor="admin-email">Email</Label>
                     <Input
-                      id="admin-username"
+                      id="admin-email"
                       type="email"
                       placeholder="super@school.com"
-                      value={adminCredentials.username}
-                      onChange={(e) => setAdminCredentials({ ...adminCredentials, username: e.target.value })}
+                      value={adminForm.email}
+                      onChange={(e) => setAdminForm({ ...adminForm, email: e.target.value })}
                       required
                     />
                   </div>
@@ -147,8 +173,8 @@ export default function LoginPage() {
                         id="admin-password"
                         type={showAdminPassword ? "text" : "password"}
                         placeholder="Enter your password"
-                        value={adminCredentials.password}
-                        onChange={(e) => setAdminCredentials({ ...adminCredentials, password: e.target.value })}
+                        value={adminForm.password}
+                        onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
                         required
                       />
                       <Button
@@ -162,12 +188,18 @@ export default function LoginPage() {
                       </Button>
                     </div>
                   </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Signing in..." : "Sign in as Admin"}
+                  {adminError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{adminError}</AlertDescription>
+                    </Alert>
+                  )}
+                  <Button type="submit" className="w-full bg-green-600 hover:bg-green-700" disabled={adminLoading}>
+                    {adminLoading ? "Signing in..." : "Sign in as Admin"}
                   </Button>
                 </form>
               </TabsContent>
 
+              {/* Student Login */}
               <TabsContent value="student">
                 <form onSubmit={handleStudentLogin} className="space-y-4">
                   <div className="space-y-2">
@@ -176,8 +208,8 @@ export default function LoginPage() {
                       id="student-email"
                       type="email"
                       placeholder="chioma.okafor@student.com"
-                      value={studentCredentials.email}
-                      onChange={(e) => setStudentCredentials({ ...studentCredentials, email: e.target.value })}
+                      value={studentForm.email}
+                      onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })}
                       required
                     />
                   </div>
@@ -188,8 +220,8 @@ export default function LoginPage() {
                         id="student-password"
                         type={showStudentPassword ? "text" : "password"}
                         placeholder="Enter your password"
-                        value={studentCredentials.password}
-                        onChange={(e) => setStudentCredentials({ ...studentCredentials, password: e.target.value })}
+                        value={studentForm.password}
+                        onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })}
                         required
                       />
                       <Button
@@ -203,12 +235,18 @@ export default function LoginPage() {
                       </Button>
                     </div>
                   </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Signing in..." : "Sign in as Student"}
+                  {studentError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{studentError}</AlertDescription>
+                    </Alert>
+                  )}
+                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={studentLoading}>
+                    {studentLoading ? "Signing in..." : "Sign in as Student"}
                   </Button>
                 </form>
               </TabsContent>
 
+              {/* Teacher Login */}
               <TabsContent value="teacher">
                 <form onSubmit={handleTeacherLogin} className="space-y-4">
                   <div className="space-y-2">
@@ -217,8 +255,8 @@ export default function LoginPage() {
                       id="teacher-email"
                       type="email"
                       placeholder="mary.johnson@school.com"
-                      value={teacherCredentials.email}
-                      onChange={(e) => setTeacherCredentials({ ...teacherCredentials, email: e.target.value })}
+                      value={teacherForm.email}
+                      onChange={(e) => setTeacherForm({ ...teacherForm, email: e.target.value })}
                       required
                     />
                   </div>
@@ -229,8 +267,8 @@ export default function LoginPage() {
                         id="teacher-password"
                         type={showTeacherPassword ? "text" : "password"}
                         placeholder="Enter your password"
-                        value={teacherCredentials.password}
-                        onChange={(e) => setTeacherCredentials({ ...teacherCredentials, password: e.target.value })}
+                        value={teacherForm.password}
+                        onChange={(e) => setTeacherForm({ ...teacherForm, password: e.target.value })}
                         required
                       />
                       <Button
@@ -244,8 +282,13 @@ export default function LoginPage() {
                       </Button>
                     </div>
                   </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Signing in..." : "Sign in as Teacher"}
+                  {teacherError && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{teacherError}</AlertDescription>
+                    </Alert>
+                  )}
+                  <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700" disabled={teacherLoading}>
+                    {teacherLoading ? "Signing in..." : "Sign in as Teacher"}
                   </Button>
                 </form>
               </TabsContent>

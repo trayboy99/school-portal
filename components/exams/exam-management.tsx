@@ -26,6 +26,7 @@ import { supabase } from "@/lib/supabase"
 interface Exam {
   id: number
   exam_name: string
+  class: string
   year: string
   term: string
   mark_type: string
@@ -101,7 +102,7 @@ export default function ExamManagement() {
   const [classes, setClasses] = useState<string[]>([])
   const [academicCalendar] = useState(academicCalendarData)
 
-  // Form data for creating exam (removed class)
+  // Form data for creating exam
   const [examFormData, setExamFormData] = useState({
     exam_name: "",
     start_date: "",
@@ -220,7 +221,7 @@ export default function ExamManagement() {
     return { ca1: 0, ca2: 0, exam: 0, total: 0 }
   }
 
-  // Handle exam creation (updated without class)
+  // Handle exam creation - FIXED to include class field
   const handleCreateExam = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -228,6 +229,7 @@ export default function ExamManagement() {
     try {
       const examData = {
         exam_name: examFormData.exam_name,
+        class: "ALL", // Use "ALL" for system-wide exams
         year: academicCalendar.currentYear,
         term: academicCalendar.currentTerm,
         mark_type: examFormData.mark_type,
@@ -497,6 +499,7 @@ export default function ExamManagement() {
                       <li>• Session: {academicCalendar.currentSession.replace("-", "/")}</li>
                       <li>• Term: {academicCalendar.currentTermName}</li>
                       <li>• Year: {academicCalendar.currentYear}</li>
+                      <li>• Class: ALL (System-wide)</li>
                     </ul>
                   </div>
                 </div>
@@ -504,7 +507,7 @@ export default function ExamManagement() {
                   <Button
                     variant="outline"
                     type="button"
-                    className="w-full sm:w-auto"
+                    className="w-full sm:w-auto bg-transparent"
                     onClick={() => setIsDialogOpen(false)}
                   >
                     Cancel
@@ -582,7 +585,7 @@ export default function ExamManagement() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-blue-600">
-                            All Classes
+                            {exam.class === "ALL" ? "All Classes" : exam.class}
                           </Badge>
                         </TableCell>
                       </TableRow>
