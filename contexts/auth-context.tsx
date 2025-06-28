@@ -5,40 +5,19 @@ import { createContext, useContext, useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
 
 interface User {
-  id: string
+  id: number
   username: string
   email: string
-  role: "admin" | "student"
-  userType?: "admin" | "student"
-  firstName?: string
-  middleName?: string
-  lastName?: string
-  dbId?: number
-  class?: string
-}
-
-interface Student {
-  id: number
-  roll_no: string
   first_name: string
-  middle_name?: string
-  surname: string
-  class: string
+  last_name: string
+  user_type: string
   status: string
-  email?: string
-  phone?: string
-  address?: string
-  parent_name?: string
-  parent_phone?: string
-  parent_email?: string
-  created_at: string
 }
 
 interface AuthContextType {
   user: User | null
-  student: Student | null
-  isLoading: boolean
-  login: (username: string, password: string) => Promise<boolean>
+  loading: boolean
+  login: (email: string, password: string, userType: string) => Promise<boolean>
   logout: () => void
 }
 
@@ -46,145 +25,77 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [student, setStudent] = useState<Student | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check if user is logged in from localStorage
-    const savedUser = localStorage.getItem("user")
-    const savedStudent = localStorage.getItem("student")
-
-    if (savedUser) {
-      try {
-        const parsedUser = JSON.parse(savedUser)
-        setUser(parsedUser)
-        console.log("Restored user from localStorage:", parsedUser)
-      } catch (error) {
-        console.error("Error parsing saved user:", error)
-        localStorage.removeItem("user")
-      }
-    }
-
-    if (savedStudent) {
-      try {
-        const parsedStudent = JSON.parse(savedStudent)
-        setStudent(parsedStudent)
-        console.log("Restored student from localStorage:", parsedStudent)
-      } catch (error) {
-        console.error("Error parsing saved student:", error)
-        localStorage.removeItem("student")
-      }
-    }
-
-    setIsLoading(false)
+    checkSession()
   }, [])
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const checkSession = async () => {
     try {
-      setIsLoading(true)
-      console.log("=== LOGIN ATTEMPT ===")
-      console.log("Username:", username)
-
-      // Check admin login first
-      if (username === "super@school.com" && password === "admin123") {
-        const adminUser: User = {
-          id: "1",
-          username: "super@school.com",
-          email: "super@school.com",
-          role: "admin",
-          userType: "admin",
-          firstName: "Super",
-          lastName: "Admin",
-        }
-        setUser(adminUser)
-        localStorage.setItem("user", JSON.stringify(adminUser))
-        console.log("Admin login successful")
-        return true
+      const sessionToken = sessionStorage.getItem("auth_session")
+      if (sessionToken) {
+        const userData = JSON.parse(sessionToken)
+        setUser(userData)
       }
+    } catch (error) {
+      console.error("Session check error:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-      // Check student login using EMAIL
-      console.log("Checking student login with email:", username)
-      const { data: studentData, error: studentError } = await supabase
-        .from("students")
-        .select("*")
-        .eq("email", username)
-        .eq("status", "Active")
-        .single()
+  const login = async (email: string, password: string, userType: string): Promise<boolean> => {
+    try {
+      setLoading(true)
+      console.log(`Attempting ${userType} login for:`, email)
 
-      console.log("Student query result:", { studentData, studentError })
+      if (userType === "admin") {
+        const { data: adminData, error: adminError } = await supabase
+          .from("users")
+          .select("*")
+          .eq("email", email)
+          .eq("password_hash", password)
+          .eq("user_type", "admin")
+          .eq("status", "Active")
+          .single()
 
-      if (!studentError && studentData) {
-        // Simple password check for students
-        if (password === "student123" || password === studentData.roll_no) {
-          console.log("Student password verified, creating user objects...")
+        console.log("Admin query result:", { adminData, adminError })
 
-          const studentInfo: Student = {
-            id: studentData.id,
-            roll_no: studentData.roll_no,
-            first_name: studentData.first_name,
-            middle_name: studentData.middle_name,
-            surname: studentData.surname,
-            class: studentData.class,
-            status: studentData.status,
-            email: studentData.email,
-            phone: studentData.phone,
-            address: studentData.address,
-            parent_name: studentData.parent_name,
-            parent_phone: studentData.parent_phone,
-            parent_email: studentData.parent_email,
-            created_at: studentData.created_at,
+        if (adminData && !adminError) {
+          const userData = {
+            id: adminData.id,
+            username: adminData.username,
+            email: adminData.email,
+            first_name: adminData.first_name,
+            last_name: adminData.last_name,
+            user_type: adminData.user_type,
+            status: adminData.status,
           }
 
-          // Create user object for student with proper data for results section
-          const studentUser: User = {
-            id: studentData.id.toString(),
-            username: studentData.email || studentData.roll_no,
-            email: studentData.email || "",
-            role: "student",
-            userType: "student",
-            firstName: studentData.first_name,
-            middleName: studentData.middle_name,
-            lastName: studentData.surname,
-            dbId: studentData.id, // This is crucial for results section
-            class: studentData.class, // This is crucial for results section
-          }
-
-          console.log("Setting student user data:", studentUser)
-          console.log("Setting student info:", studentInfo)
-
-          setStudent(studentInfo)
-          setUser(studentUser) // Set both student and user for compatibility
-          localStorage.setItem("student", JSON.stringify(studentInfo))
-          localStorage.setItem("user", JSON.stringify(studentUser))
-
-          console.log("Student login successful!")
+          setUser(userData)
+          sessionStorage.setItem("auth_session", JSON.stringify(userData))
+          console.log("Admin login successful")
           return true
-        } else {
-          console.log("Student password verification failed")
         }
-      } else {
-        console.log("Student not found or error:", studentError)
       }
 
-      console.log("Login failed")
+      console.log("Login failed - invalid credentials")
       return false
     } catch (error) {
       console.error("Login error:", error)
       return false
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
   const logout = () => {
     setUser(null)
-    setStudent(null)
-    localStorage.removeItem("user")
-    localStorage.removeItem("student")
-    localStorage.removeItem("teacher")
+    sessionStorage.removeItem("auth_session")
   }
 
-  return <AuthContext.Provider value={{ user, student, isLoading, login, logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

@@ -9,7 +9,7 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Westminster School Portal",
-  description: "School Management System",
+  description: "School management system for Westminster School",
     generator: 'v0.dev'
 }
 

@@ -9,13 +9,15 @@ import {
   BookOpen,
   ClipboardList,
   UserCheck,
+  FileText,
   Calendar,
-  BarChart3,
+  TrendingUp,
   MessageSquare,
   Settings,
   X,
-  FileText,
+  GraduationCap,
   Upload,
+  MessageCircle,
 } from "lucide-react"
 
 interface TeacherSidebarProps {
@@ -33,9 +35,12 @@ const menuItems = [
   { id: "attendance", label: "Attendance", icon: UserCheck },
   { id: "assignments", label: "Assignments", icon: FileText },
   { id: "timetable", label: "Timetable", icon: Calendar },
-  { id: "student-performance", label: "Student Performance", icon: BarChart3 },
+  { id: "student-performance", label: "Student Performance", icon: TrendingUp },
+  { id: "all-teachers", label: "All Teachers", icon: GraduationCap },
+  { id: "class-assigned", label: "Class Assigned", icon: Users },
+  { id: "subjects-overview", label: "Subjects Overview", icon: BookOpen },
+  { id: "report-comments", label: "Report Comments", icon: MessageCircle },
   { id: "uploads", label: "Uploads", icon: Upload },
-  { id: "report-comments", label: "Report Comments", icon: FileText },
   { id: "communications", label: "Communications", icon: MessageSquare },
   { id: "settings", label: "Settings", icon: Settings },
 ]
@@ -54,7 +59,10 @@ export function TeacherSidebar({ activeSection, setActiveSection, isOpen, onClos
         )}
       >
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-900">Teacher Portal</h2>
+          <div className="flex items-center space-x-2">
+            <GraduationCap className="h-8 w-8 text-blue-600" />
+            <span className="text-lg font-semibold">Teacher Portal</span>
+          </div>
           <Button variant="ghost" size="sm" onClick={onClose} className="lg:hidden">
             <X className="h-5 w-5" />
           </Button>
@@ -69,17 +77,15 @@ export function TeacherSidebar({ activeSection, setActiveSection, isOpen, onClos
                   key={item.id}
                   variant={activeSection === item.id ? "default" : "ghost"}
                   className={cn(
-                    "w-full justify-start gap-3",
-                    activeSection === item.id
-                      ? "bg-blue-600 text-white hover:bg-blue-700"
-                      : "text-gray-700 hover:bg-gray-100",
+                    "w-full justify-start",
+                    activeSection === item.id && "bg-blue-600 text-white hover:bg-blue-700",
                   )}
                   onClick={() => {
                     setActiveSection(item.id)
                     onClose()
                   }}
                 >
-                  <Icon className="h-5 w-5" />
+                  <Icon className="mr-2 h-4 w-4" />
                   {item.label}
                 </Button>
               )

@@ -8,121 +8,131 @@ interface Teacher {
   id: number
   employee_id: string
   first_name: string
-  middle_name?: string
+  middle_name: string
   surname: string
   email: string
   phone: string
-  date_of_birth: string
-  gender: string
-  home_address: string
+  department: string
   qualification: string
   experience: string
-  department: string
   employment_type: string
   hire_date: string
-  salary: string
-  emergency_contact: string
-  emergency_phone: string
-  username: string
-  password_hash: string
-  credential_method: string
-  custom_username?: string
-  custom_password?: string
-  send_credentials_to?: string
-  avatar: string
   status: string
   subjects: string[]
   classes: string[]
-  created_at: string
-  updated_at: string
 }
 
 interface TeacherAuthContextType {
   teacher: Teacher | null
+  loading: boolean
   login: (email: string, password: string) => Promise<boolean>
   logout: () => void
-  isLoading: boolean
 }
 
 const TeacherAuthContext = createContext<TeacherAuthContextType | undefined>(undefined)
 
 export function TeacherAuthProvider({ children }: { children: React.ReactNode }) {
   const [teacher, setTeacher] = useState<Teacher | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check if teacher is stored in localStorage
-    const storedTeacher = localStorage.getItem("teacher")
-    if (storedTeacher) {
-      try {
-        const parsedTeacher = JSON.parse(storedTeacher)
-        console.log("Restored teacher from localStorage:", parsedTeacher)
-        setTeacher(parsedTeacher)
-      } catch (error) {
-        console.error("Error parsing stored teacher:", error)
-        localStorage.removeItem("teacher")
-      }
-    }
-    setIsLoading(false)
+    checkSession()
   }, [])
+
+  const checkSession = async () => {
+    try {
+      const sessionToken = sessionStorage.getItem("teacher_session")
+      if (sessionToken) {
+        const teacherData = JSON.parse(sessionToken)
+        setTeacher(teacherData)
+      }
+    } catch (error) {
+      console.error("Teacher session check error:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const parseJsonArray = (jsonString: string): string[] => {
+    try {
+      if (!jsonString) return []
+
+      // Handle PostgreSQL array format like {"English Language","Literature"}
+      if (jsonString.startsWith("{") && jsonString.endsWith("}")) {
+        const cleaned = jsonString.slice(1, -1)
+        return cleaned.split(",").map((item) => item.replace(/"/g, "").trim())
+      }
+
+      // Handle regular JSON array
+      const parsed = JSON.parse(jsonString)
+      return Array.isArray(parsed) ? parsed : []
+    } catch (error) {
+      console.error("Error parsing JSON array:", error)
+      return []
+    }
+  }
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      setIsLoading(true)
-      console.log("=== TEACHER LOGIN ATTEMPT ===")
-      console.log("Email:", email)
-      console.log("Password:", password)
+      setLoading(true)
+      console.log("Attempting teacher login for:", email)
 
-      // Query the teachers table from Supabase
-      const { data: teachers, error } = await supabase
+      const { data: teacherData, error: teacherError } = await supabase
         .from("teachers")
         .select("*")
         .eq("email", email)
+        .eq("password_hash", password)
         .eq("status", "Active")
+        .single()
 
-      console.log("Teachers query result:", teachers)
-      console.log("Teachers query error:", error)
+      console.log("Teacher query result:", { teacherData, teacherError })
 
-      if (error) {
-        console.error("Database error:", error)
-        return false
-      }
+      if (teacherData && !teacherError) {
+        console.log("Found teacher in database:", teacherData)
 
-      if (!teachers || teachers.length === 0) {
-        console.log("No teacher found with email:", email)
-        return false
-      }
+        const teacher: Teacher = {
+          id: teacherData.id,
+          employee_id: teacherData.employee_id,
+          first_name: teacherData.first_name,
+          middle_name: teacherData.middle_name || "",
+          surname: teacherData.surname,
+          email: teacherData.email,
+          phone: teacherData.phone,
+          department: teacherData.department,
+          qualification: teacherData.qualification,
+          experience: teacherData.experience,
+          employment_type: teacherData.employment_type,
+          hire_date: teacherData.hire_date,
+          status: teacherData.status,
+          subjects: parseJsonArray(teacherData.subjects),
+          classes: parseJsonArray(teacherData.classes),
+        }
 
-      const teacher = teachers[0]
-      console.log("Found teacher:", teacher)
+        console.log("Parsed teacher data:", teacher)
+        console.log("Password verified, setting teacher in context")
 
-      // Check password - accepting both "teacher123" and the stored password_hash
-      if (password === "teacher123" || password === teacher.password_hash) {
-        console.log("Password verified, logging in teacher")
         setTeacher(teacher)
-        localStorage.setItem("teacher", JSON.stringify(teacher))
+        sessionStorage.setItem("teacher_session", JSON.stringify(teacher))
         return true
-      } else {
-        console.log("Password verification failed")
-        console.log("Expected: teacher123 or", teacher.password_hash)
-        console.log("Received:", password)
-        return false
       }
+
+      console.log("Teacher login failed - invalid credentials")
+      return false
     } catch (error) {
-      console.error("Login error:", error)
+      console.error("Teacher login error:", error)
       return false
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
   const logout = () => {
     setTeacher(null)
-    localStorage.removeItem("teacher")
+    sessionStorage.removeItem("teacher_session")
   }
 
   return (
-    <TeacherAuthContext.Provider value={{ teacher, login, logout, isLoading }}>{children}</TeacherAuthContext.Provider>
+    <TeacherAuthContext.Provider value={{ teacher, loading, login, logout }}>{children}</TeacherAuthContext.Provider>
   )
 }
 
