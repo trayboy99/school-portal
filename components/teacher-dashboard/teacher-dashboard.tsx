@@ -1,8 +1,11 @@
 "use client"
+
 import { useState } from "react"
+
 import { TeacherSidebar } from "./teacher-sidebar"
 import { TeacherHeader } from "./teacher-header"
 import { TeacherDashboardContent } from "./teacher-dashboard-content"
+
 import { MyClassesSection } from "./sections/my-classes-section"
 import { MySubjectsSection } from "./sections/my-subjects-section"
 import { MarksEntrySection } from "./sections/marks-entry-section"
@@ -18,7 +21,7 @@ import { SubjectsOverviewSection } from "./sections/subjects-overview-section"
 import { ReportCommentsSection } from "./sections/report-comments-section"
 import { UploadsSection } from "./sections/uploads-section"
 
-export function TeacherDashboard() {
+export default function TeacherDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeSection, setActiveSection] = useState("dashboard")
 
@@ -70,7 +73,9 @@ export function TeacherDashboard() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <TeacherHeader onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">{renderActiveSection()}</main>
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
+          {renderActiveSection()}
+        </main>
       </div>
     </div>
   )

@@ -3,7 +3,8 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useTeacherAuth } from "@/contexts/teacher-auth-context"
-import { TeacherDashboard } from "@/components/teacher-dashboard/teacher-dashboard"
+import TeacherDashboard from "@/components/teacher-dashboard/teacher-dashboard"
+
 
 export default function TeacherDashboardPage() {
   const { teacher, loading } = useTeacherAuth()

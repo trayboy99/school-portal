@@ -54,26 +54,31 @@ export function TeacherAuthProvider({ children }: { children: React.ReactNode })
   }
 
   const parseJsonArray = (jsonString: any): string[] => {
-    try {
-      if (!jsonString) return []
+  try {
+    if (!jsonString) return [];
 
-      // Convert to string if it's not already
-      const str = String(jsonString)
+    const str = String(jsonString).trim();
 
-      // Handle PostgreSQL array format like {"English Language","Literature"}
-      if (str.startsWith("{") && str.endsWith("}")) {
-        const cleaned = str.slice(1, -1)
-        return cleaned.split(",").map((item) => item.replace(/"/g, "").trim())
-      }
-
-      // Handle regular JSON array
-      const parsed = JSON.parse(str)
-      return Array.isArray(parsed) ? parsed : []
-    } catch (error) {
-      console.error("Error parsing JSON array:", error)
-      return []
+    // Handle PostgreSQL array format like {"English","Maths"}
+    if (str.startsWith("{") && str.endsWith("}")) {
+      const cleaned = str.slice(1, -1);
+      return cleaned.split(",").map((item) => item.replace(/"/g, "").trim());
     }
+
+    // Handle plain CSV string like "Physics,Chemistry"
+    if (str.includes(",") && !str.startsWith("[") && !str.startsWith("{")) {
+      return str.split(",").map((item) => item.trim());
+    }
+
+    // Handle proper JSON array string
+    const parsed = JSON.parse(str);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("Error parsing JSON array:", error);
+    return [];
   }
+};
+
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
