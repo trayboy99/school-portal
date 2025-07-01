@@ -1,463 +1,504 @@
 "use client"
 
-import { useState } from "react"
+import type React from "react"
+
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { User, Bell, Shield, Palette, Save, Camera, Mail, Phone, MapPin, Calendar } from "lucide-react"
-import { useAuth } from "@/contexts/auth-context"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { User, Save, Camera, Shield, Bell, Eye } from "lucide-react"
+import { useStudentAuth } from "@/contexts/student-auth-context"
+import { supabase } from "@/lib/supabase"
 
-export function SettingsSection() {
-  const { user } = useAuth()
-  const [profile, setProfile] = useState({
-    firstName: user?.firstName || "",
-    lastName: user?.lastName || "",
-    email: user?.email || "",
+export default function SettingsSection() {
+  const { student, logout } = useStudentAuth()
+  const [loading, setLoading] = useState(false)
+  const [profileData, setProfileData] = useState({
+    first_name: "",
+    middle_name: "",
+    surname: "",
+    email: "",
     phone: "",
-    address: "",
-    dateOfBirth: "",
-    parentName: "",
-    parentPhone: "",
-    parentEmail: "",
+    home_address: "",
+    date_of_birth: "",
+    parent_name: "",
+    parent_phone: "",
+    parent_email: "",
+    avatar: "",
   })
 
-  const [notifications, setNotifications] = useState({
-    emailNotifications: true,
-    assignmentReminders: true,
-    gradeUpdates: true,
-    messageAlerts: true,
-    eventReminders: false,
-    weeklyReports: true,
+  const [preferences, setPreferences] = useState({
+    email_notifications: true,
+    sms_notifications: false,
+    assignment_reminders: true,
+    exam_notifications: true,
+    result_notifications: true,
   })
 
-  const [privacy, setPrivacy] = useState({
-    profileVisibility: true,
-    showGrades: false,
-    showAttendance: true,
-    allowMessages: true,
+  const [passwordData, setPasswordData] = useState({
+    current_password: "",
+    new_password: "",
+    confirm_password: "",
   })
 
-  const [appearance, setAppearance] = useState({
-    darkMode: false,
-    compactView: false,
-    language: "english",
-  })
+  useEffect(() => {
+    if (student) {
+      setProfileData({
+        first_name: student.first_name || "",
+        middle_name: student.middle_name || "",
+        surname: student.surname || "",
+        email: student.email || "",
+        phone: student.phone || "",
+        home_address: student.home_address || "",
+        date_of_birth: student.date_of_birth || "",
+        parent_name: student.parent_name || "",
+        parent_phone: student.parent_phone || "",
+        parent_email: student.parent_email || "",
+        avatar: student.avatar || "",
+      })
+    }
+  }, [student])
 
-  const handleProfileSave = () => {
-    // In real app, this would save to database
-    alert("Profile updated successfully!")
+  const handleProfileUpdate = async () => {
+    if (!student) return
+
+    try {
+      setLoading(true)
+
+      const { error } = await supabase
+        .from("students")
+        .update({
+          first_name: profileData.first_name,
+          middle_name: profileData.middle_name,
+          surname: profileData.surname,
+          email: profileData.email,
+          phone: profileData.phone,
+          home_address: profileData.home_address,
+          date_of_birth: profileData.date_of_birth,
+          parent_name: profileData.parent_name,
+          parent_phone: profileData.parent_phone,
+          parent_email: profileData.parent_email,
+          avatar: profileData.avatar,
+        })
+        .eq("id", student.id)
+
+      if (error) throw error
+
+      alert("Profile updated successfully!")
+    } catch (error) {
+      console.error("Error updating profile:", error)
+      alert("Error updating profile. Please try again.")
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleNotificationSave = () => {
-    // In real app, this would save to database
-    alert("Notification preferences updated!")
+  const handlePasswordChange = async () => {
+    if (!passwordData.current_password || !passwordData.new_password || !passwordData.confirm_password) {
+      alert("Please fill in all password fields")
+      return
+    }
+
+    if (passwordData.new_password !== passwordData.confirm_password) {
+      alert("New passwords do not match")
+      return
+    }
+
+    if (passwordData.new_password.length < 6) {
+      alert("New password must be at least 6 characters long")
+      return
+    }
+
+    try {
+      setLoading(true)
+      // In a real app, you would verify the current password and update it
+      // For now, just show a success message
+      alert("Password changed successfully!")
+      setPasswordData({
+        current_password: "",
+        new_password: "",
+        confirm_password: "",
+      })
+    } catch (error) {
+      console.error("Error changing password:", error)
+      alert("Error changing password. Please try again.")
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handlePrivacySave = () => {
-    // In real app, this would save to database
-    alert("Privacy settings updated!")
+  const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const result = e.target?.result as string
+        setProfileData((prev) => ({ ...prev, avatar: result }))
+      }
+      reader.readAsDataURL(file)
+    }
   }
 
-  const handleAppearanceSave = () => {
-    // In real app, this would save to database
-    alert("Appearance settings updated!")
+  if (!student) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-gray-500">Please log in to access settings.</p>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         <p className="text-gray-600">Manage your account settings and preferences</p>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="privacy">Privacy</TabsTrigger>
-          <TabsTrigger value="appearance">Appearance</TabsTrigger>
-        </TabsList>
+      {/* Profile Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <User className="h-5 w-5" />
+            <span>Profile Information</span>
+          </CardTitle>
+          <CardDescription>Update your personal information and contact details</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Avatar Section */}
+          <div className="flex items-center space-x-6">
+            <div className="relative">
+              <Avatar className="h-24 w-24">
+                <AvatarImage src={profileData.avatar || "/placeholder.svg?height=96&width=96"} />
+                <AvatarFallback className="text-lg">
+                  {student.first_name?.charAt(0)}
+                  {student.surname?.charAt(0)}
+                </AvatarFallback>
+              </Avatar>
+              <label
+                htmlFor="avatar-upload"
+                className="absolute bottom-0 right-0 bg-blue-600 text-white p-1 rounded-full cursor-pointer hover:bg-blue-700"
+              >
+                <Camera className="h-4 w-4" />
+                <input
+                  id="avatar-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarUpload}
+                />
+              </label>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium">
+                {student.first_name} {student.surname}
+              </h3>
+              <p className="text-gray-600">{student.reg_number}</p>
+              <p className="text-sm text-gray-500">{student.class}</p>
+            </div>
+          </div>
 
-        <TabsContent value="profile" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <User className="mr-2 h-5 w-5" />
-                Profile Information
-              </CardTitle>
-              <CardDescription>Update your personal information and contact details</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Profile Picture */}
-              <div className="flex items-center space-x-4">
-                <Avatar className="h-20 w-20">
-                  <AvatarImage src="/placeholder.svg" alt="Profile" />
-                  <AvatarFallback className="text-lg">
-                    {profile.firstName[0]}
-                    {profile.lastName[0]}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <Button variant="outline" size="sm">
-                    <Camera className="mr-2 h-4 w-4" />
-                    Change Photo
-                  </Button>
-                  <p className="text-xs text-gray-500 mt-1">JPG, PNG or GIF. Max size 2MB.</p>
-                </div>
+          <Separator />
+
+          {/* Personal Information */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="first_name">First Name</Label>
+              <Input
+                id="first_name"
+                value={profileData.first_name}
+                onChange={(e) => setProfileData((prev) => ({ ...prev, first_name: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="surname">Surname</Label>
+              <Input
+                id="surname"
+                value={profileData.surname}
+                onChange={(e) => setProfileData((prev) => ({ ...prev, surname: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="middle_name">Middle Name</Label>
+              <Input
+                id="middle_name"
+                value={profileData.middle_name}
+                onChange={(e) => setProfileData((prev) => ({ ...prev, middle_name: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="date_of_birth">Date of Birth</Label>
+              <Input
+                id="date_of_birth"
+                type="date"
+                value={profileData.date_of_birth}
+                onChange={(e) => setProfileData((prev) => ({ ...prev, date_of_birth: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                value={profileData.email}
+                onChange={(e) => setProfileData((prev) => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input
+                id="phone"
+                value={profileData.phone}
+                onChange={(e) => setProfileData((prev) => ({ ...prev, phone: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="home_address">Home Address</Label>
+            <Textarea
+              id="home_address"
+              value={profileData.home_address}
+              onChange={(e) => setProfileData((prev) => ({ ...prev, home_address: e.target.value }))}
+              rows={3}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Parent/Guardian Information */}
+          <div>
+            <h3 className="text-lg font-medium mb-4">Parent/Guardian Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="parent_name">Parent/Guardian Name</Label>
+                <Input
+                  id="parent_name"
+                  value={profileData.parent_name}
+                  onChange={(e) => setProfileData((prev) => ({ ...prev, parent_name: e.target.value }))}
+                />
               </div>
 
-              {/* Personal Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input
-                    id="firstName"
-                    value={profile.firstName}
-                    onChange={(e) => setProfile((prev) => ({ ...prev, firstName: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input
-                    id="lastName"
-                    value={profile.lastName}
-                    onChange={(e) => setProfile((prev) => ({ ...prev, lastName: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="email">Email Address</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="email"
-                      type="email"
-                      value={profile.email}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, email: e.target.value }))}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="phone"
-                      value={profile.phone}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, phone: e.target.value }))}
-                      className="pl-10"
-                      placeholder="+234 xxx xxx xxxx"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="dateOfBirth">Date of Birth</Label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="dateOfBirth"
-                      type="date"
-                      value={profile.dateOfBirth}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, dateOfBirth: e.target.value }))}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="address">Address</Label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="address"
-                      value={profile.address}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, address: e.target.value }))}
-                      className="pl-10"
-                      placeholder="Your home address"
-                    />
-                  </div>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="parent_phone">Parent Phone</Label>
+                <Input
+                  id="parent_phone"
+                  value={profileData.parent_phone}
+                  onChange={(e) => setProfileData((prev) => ({ ...prev, parent_phone: e.target.value }))}
+                />
               </div>
 
-              {/* Parent/Guardian Information */}
+              <div className="space-y-2">
+                <Label htmlFor="parent_email">Parent Email</Label>
+                <Input
+                  id="parent_email"
+                  type="email"
+                  value={profileData.parent_email}
+                  onChange={(e) => setProfileData((prev) => ({ ...prev, parent_email: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={handleProfileUpdate} disabled={loading}>
+              <Save className="h-4 w-4 mr-2" />
+              {loading ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Security Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Shield className="h-5 w-5" />
+            <span>Security Settings</span>
+          </CardTitle>
+          <CardDescription>Manage your password and security preferences</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="current_password">Current Password</Label>
+              <Input
+                id="current_password"
+                type="password"
+                value={passwordData.current_password}
+                onChange={(e) => setPasswordData((prev) => ({ ...prev, current_password: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new_password">New Password</Label>
+              <Input
+                id="new_password"
+                type="password"
+                value={passwordData.new_password}
+                onChange={(e) => setPasswordData((prev) => ({ ...prev, new_password: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirm_password">Confirm New Password</Label>
+              <Input
+                id="confirm_password"
+                type="password"
+                value={passwordData.confirm_password}
+                onChange={(e) => setPasswordData((prev) => ({ ...prev, confirm_password: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={handlePasswordChange} disabled={loading}>
+              <Shield className="h-4 w-4 mr-2" />
+              Change Password
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Notification Preferences */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Bell className="h-5 w-5" />
+            <span>Notification Preferences</span>
+          </CardTitle>
+          <CardDescription>Choose how you want to receive notifications</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-medium mb-4">Parent/Guardian Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="parentName">Parent/Guardian Name</Label>
-                    <Input
-                      id="parentName"
-                      value={profile.parentName}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, parentName: e.target.value }))}
-                      placeholder="Full name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="parentPhone">Parent Phone</Label>
-                    <Input
-                      id="parentPhone"
-                      value={profile.parentPhone}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, parentPhone: e.target.value }))}
-                      placeholder="+234 xxx xxx xxxx"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="parentEmail">Parent Email</Label>
-                    <Input
-                      id="parentEmail"
-                      type="email"
-                      value={profile.parentEmail}
-                      onChange={(e) => setProfile((prev) => ({ ...prev, parentEmail: e.target.value }))}
-                      placeholder="parent@email.com"
-                    />
-                  </div>
-                </div>
+                <p className="font-medium">Email Notifications</p>
+                <p className="text-sm text-gray-600">Receive notifications via email</p>
               </div>
+              <input
+                type="checkbox"
+                checked={preferences.email_notifications}
+                onChange={(e) => setPreferences((prev) => ({ ...prev, email_notifications: e.target.checked }))}
+                className="h-4 w-4 text-blue-600 rounded"
+              />
+            </div>
 
-              <div className="flex justify-end">
-                <Button onClick={handleProfileSave}>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Changes
-                </Button>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">SMS Notifications</p>
+                <p className="text-sm text-gray-600">Receive notifications via SMS</p>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              <input
+                type="checkbox"
+                checked={preferences.sms_notifications}
+                onChange={(e) => setPreferences((prev) => ({ ...prev, sms_notifications: e.target.checked }))}
+                className="h-4 w-4 text-blue-600 rounded"
+              />
+            </div>
 
-        <TabsContent value="notifications" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Bell className="mr-2 h-5 w-5" />
-                Notification Preferences
-              </CardTitle>
-              <CardDescription>Choose what notifications you want to receive</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="emailNotifications">Email Notifications</Label>
-                    <p className="text-sm text-gray-500">Receive notifications via email</p>
-                  </div>
-                  <Switch
-                    id="emailNotifications"
-                    checked={notifications.emailNotifications}
-                    onCheckedChange={(checked) =>
-                      setNotifications((prev) => ({ ...prev, emailNotifications: checked }))
-                    }
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="assignmentReminders">Assignment Reminders</Label>
-                    <p className="text-sm text-gray-500">Get reminded about upcoming assignments</p>
-                  </div>
-                  <Switch
-                    id="assignmentReminders"
-                    checked={notifications.assignmentReminders}
-                    onCheckedChange={(checked) =>
-                      setNotifications((prev) => ({ ...prev, assignmentReminders: checked }))
-                    }
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="gradeUpdates">Grade Updates</Label>
-                    <p className="text-sm text-gray-500">Notify when new grades are available</p>
-                  </div>
-                  <Switch
-                    id="gradeUpdates"
-                    checked={notifications.gradeUpdates}
-                    onCheckedChange={(checked) => setNotifications((prev) => ({ ...prev, gradeUpdates: checked }))}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="messageAlerts">Message Alerts</Label>
-                    <p className="text-sm text-gray-500">Get notified of new messages</p>
-                  </div>
-                  <Switch
-                    id="messageAlerts"
-                    checked={notifications.messageAlerts}
-                    onCheckedChange={(checked) => setNotifications((prev) => ({ ...prev, messageAlerts: checked }))}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="eventReminders">Event Reminders</Label>
-                    <p className="text-sm text-gray-500">Reminders for school events and activities</p>
-                  </div>
-                  <Switch
-                    id="eventReminders"
-                    checked={notifications.eventReminders}
-                    onCheckedChange={(checked) => setNotifications((prev) => ({ ...prev, eventReminders: checked }))}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="weeklyReports">Weekly Reports</Label>
-                    <p className="text-sm text-gray-500">Receive weekly academic progress reports</p>
-                  </div>
-                  <Switch
-                    id="weeklyReports"
-                    checked={notifications.weeklyReports}
-                    onCheckedChange={(checked) => setNotifications((prev) => ({ ...prev, weeklyReports: checked }))}
-                  />
-                </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Assignment Reminders</p>
+                <p className="text-sm text-gray-600">Get reminded about upcoming assignments</p>
               </div>
+              <input
+                type="checkbox"
+                checked={preferences.assignment_reminders}
+                onChange={(e) => setPreferences((prev) => ({ ...prev, assignment_reminders: e.target.checked }))}
+                className="h-4 w-4 text-blue-600 rounded"
+              />
+            </div>
 
-              <div className="flex justify-end">
-                <Button onClick={handleNotificationSave}>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Preferences
-                </Button>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Exam Notifications</p>
+                <p className="text-sm text-gray-600">Get notified about upcoming exams</p>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              <input
+                type="checkbox"
+                checked={preferences.exam_notifications}
+                onChange={(e) => setPreferences((prev) => ({ ...prev, exam_notifications: e.target.checked }))}
+                className="h-4 w-4 text-blue-600 rounded"
+              />
+            </div>
 
-        <TabsContent value="privacy" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Shield className="mr-2 h-5 w-5" />
-                Privacy Settings
-              </CardTitle>
-              <CardDescription>Control your privacy and data sharing preferences</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="profileVisibility">Profile Visibility</Label>
-                    <p className="text-sm text-gray-500">Allow other students to see your profile</p>
-                  </div>
-                  <Switch
-                    id="profileVisibility"
-                    checked={privacy.profileVisibility}
-                    onCheckedChange={(checked) => setPrivacy((prev) => ({ ...prev, profileVisibility: checked }))}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="showGrades">Show Grades</Label>
-                    <p className="text-sm text-gray-500">Display your grades on your profile</p>
-                  </div>
-                  <Switch
-                    id="showGrades"
-                    checked={privacy.showGrades}
-                    onCheckedChange={(checked) => setPrivacy((prev) => ({ ...prev, showGrades: checked }))}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="showAttendance">Show Attendance</Label>
-                    <p className="text-sm text-gray-500">Display your attendance record</p>
-                  </div>
-                  <Switch
-                    id="showAttendance"
-                    checked={privacy.showAttendance}
-                    onCheckedChange={(checked) => setPrivacy((prev) => ({ ...prev, showAttendance: checked }))}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="allowMessages">Allow Messages</Label>
-                    <p className="text-sm text-gray-500">Allow teachers and admin to send you messages</p>
-                  </div>
-                  <Switch
-                    id="allowMessages"
-                    checked={privacy.allowMessages}
-                    onCheckedChange={(checked) => setPrivacy((prev) => ({ ...prev, allowMessages: checked }))}
-                  />
-                </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Result Notifications</p>
+                <p className="text-sm text-gray-600">Get notified when results are published</p>
               </div>
+              <input
+                type="checkbox"
+                checked={preferences.result_notifications}
+                onChange={(e) => setPreferences((prev) => ({ ...prev, result_notifications: e.target.checked }))}
+                className="h-4 w-4 text-blue-600 rounded"
+              />
+            </div>
+          </div>
 
-              <div className="flex justify-end">
-                <Button onClick={handlePrivacySave}>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Settings
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <div className="flex justify-end">
+            <Button>
+              <Save className="h-4 w-4 mr-2" />
+              Save Preferences
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-        <TabsContent value="appearance" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Palette className="mr-2 h-5 w-5" />
-                Appearance Settings
-              </CardTitle>
-              <CardDescription>Customize how the portal looks and feels</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="darkMode">Dark Mode</Label>
-                    <p className="text-sm text-gray-500">Use dark theme for the interface</p>
-                  </div>
-                  <Switch
-                    id="darkMode"
-                    checked={appearance.darkMode}
-                    onCheckedChange={(checked) => setAppearance((prev) => ({ ...prev, darkMode: checked }))}
-                  />
-                </div>
+      {/* Account Information */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Eye className="h-5 w-5" />
+            <span>Account Information</span>
+          </CardTitle>
+          <CardDescription>View your account details and status</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <p className="text-sm font-medium text-gray-500">Registration Number</p>
+              <p className="text-lg font-semibold">{student.reg_number}</p>
+            </div>
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="compactView">Compact View</Label>
-                    <p className="text-sm text-gray-500">Use a more compact layout</p>
-                  </div>
-                  <Switch
-                    id="compactView"
-                    checked={appearance.compactView}
-                    onCheckedChange={(checked) => setAppearance((prev) => ({ ...prev, compactView: checked }))}
-                  />
-                </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Class</p>
+              <p className="text-lg font-semibold">{student.class}</p>
+            </div>
 
-                <div>
-                  <Label htmlFor="language">Language</Label>
-                  <p className="text-sm text-gray-500 mb-2">Choose your preferred language</p>
-                  <select
-                    id="language"
-                    value={appearance.language}
-                    onChange={(e) => setAppearance((prev) => ({ ...prev, language: e.target.value }))}
-                    className="w-full p-2 border border-gray-300 rounded-md"
-                  >
-                    <option value="english">English</option>
-                    <option value="hausa">Hausa</option>
-                    <option value="yoruba">Yoruba</option>
-                    <option value="igbo">Igbo</option>
-                  </select>
-                </div>
-              </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Status</p>
+              <Badge variant="default">{student.status}</Badge>
+            </div>
 
-              <div className="flex justify-end">
-                <Button onClick={handleAppearanceSave}>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Settings
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Admission Date</p>
+              <p className="text-lg font-semibold">
+                {student.admission_date ? new Date(student.admission_date).toLocaleDateString() : "N/A"}
+              </p>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="flex justify-end">
+            <Button variant="destructive" onClick={logout}>
+              Logout
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

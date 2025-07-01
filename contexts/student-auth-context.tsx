@@ -6,117 +6,100 @@ import { supabase } from "@/lib/supabase"
 
 interface Student {
   id: number
-  roll_no: string
-  reg_number: string
   first_name: string
-  middle_name: string
+  middle_name?: string
   surname: string
   email: string
-  phone: string
-  date_of_birth: string
-  gender: string
-  home_address: string
+  phone?: string
+  gender?: string
+  date_of_birth?: string
   current_class: string
-  section: string
-  parent_name: string
-  parent_phone: string
-  parent_email: string
+  section?: string
+  roll_no?: string
+  reg_number?: string
+  parent_name?: string
+  parent_phone?: string
+  parent_email?: string
+  home_address?: string
   status: string
+  created_at: string
+  updated_at: string
 }
 
 interface StudentAuthContextType {
   student: Student | null
-  loading: boolean
   login: (email: string, password: string) => Promise<boolean>
   logout: () => void
+  isLoading: boolean
 }
 
 const StudentAuthContext = createContext<StudentAuthContextType | undefined>(undefined)
 
 export function StudentAuthProvider({ children }: { children: React.ReactNode }) {
   const [student, setStudent] = useState<Student | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    checkSession()
-  }, [])
-
-  const checkSession = async () => {
-    try {
-      const sessionToken = sessionStorage.getItem("student_session")
-      if (sessionToken) {
-        const studentData = JSON.parse(sessionToken)
-        setStudent(studentData)
+    // Check if student is already logged in
+    const storedStudent = localStorage.getItem("student")
+    if (storedStudent) {
+      try {
+        setStudent(JSON.parse(storedStudent))
+      } catch (error) {
+        console.error("Error parsing stored student:", error)
+        localStorage.removeItem("student")
       }
-    } catch (error) {
-      console.error("Student session check error:", error)
-    } finally {
-      setLoading(false)
     }
-  }
+    setIsLoading(false)
+  }, [])
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      setLoading(true)
-      console.log("Attempting student login for:", email)
+      console.log("Student login attempt for:", email)
 
-      const { data: studentData, error: studentError } = await supabase
+      // Query the students table directly
+      const { data: studentData, error } = await supabase
         .from("students")
         .select("*")
         .eq("email", email)
-        .eq("password_hash", password)
         .eq("status", "Active")
         .single()
 
-      console.log("Student query result:", { studentData, studentError })
+      console.log("Student query result:", { studentData, error })
 
-      if (studentData && !studentError) {
-        console.log("Found student in database:", studentData)
-
-        const student: Student = {
-          id: studentData.id,
-          roll_no: studentData.roll_no,
-          reg_number: studentData.reg_number,
-          first_name: studentData.first_name,
-          middle_name: studentData.middle_name || "",
-          surname: studentData.surname,
-          email: studentData.email,
-          phone: studentData.phone,
-          date_of_birth: studentData.date_of_birth,
-          gender: studentData.gender,
-          home_address: studentData.home_address,
-          current_class: studentData.current_class,
-          section: studentData.section,
-          parent_name: studentData.parent_name,
-          parent_phone: studentData.parent_phone,
-          parent_email: studentData.parent_email,
-          status: studentData.status,
-        }
-
-        console.log("Password verified, setting student in context")
-
-        setStudent(student)
-        sessionStorage.setItem("student_session", JSON.stringify(student))
-        return true
+      if (error) {
+        console.error("Student login error:", error)
+        return false
       }
 
-      console.log("Student login failed - invalid credentials")
-      return false
+      if (!studentData) {
+        console.log("No student found with email:", email)
+        return false
+      }
+
+      // Verify password (assuming password_hash column exists)
+      if (studentData.password_hash !== password) {
+        console.log("Password verification failed for student:", email)
+        return false
+      }
+
+      console.log("Password verified, setting student in context")
+      setStudent(studentData)
+      localStorage.setItem("student", JSON.stringify(studentData))
+      return true
     } catch (error) {
       console.error("Student login error:", error)
       return false
-    } finally {
-      setLoading(false)
     }
   }
 
   const logout = () => {
     setStudent(null)
-    sessionStorage.removeItem("student_session")
+    localStorage.removeItem("student")
   }
 
   return (
-    <StudentAuthContext.Provider value={{ student, loading, login, logout }}>{children}</StudentAuthContext.Provider>
+    <StudentAuthContext.Provider value={{ student, login, logout, isLoading }}>{children}</StudentAuthContext.Provider>
   )
 }
 

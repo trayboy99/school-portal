@@ -3,390 +3,323 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
-import { BookOpen, TrendingUp, Calendar, Clock, Award, Eye, Loader2 } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { BookOpen, User, Search, TrendingUp, FileText } from "lucide-react"
+import { useStudentAuth } from "@/contexts/student-auth-context"
 import { supabase } from "@/lib/supabase"
-import { useAuth } from "@/contexts/auth-context"
 
 interface Subject {
   id: number
   name: string
   code: string
   teacher_name: string
-  teacher_email: string
-  current_grade?: string
-  progress?: number
-  total_classes?: number
-  attended_classes?: number
-  assignments_count?: number
-  tests_count?: number
-  color: string
+  department: string
+  description: string
+  status: string
 }
 
-export function SubjectsSection() {
-  const { user } = useAuth()
-  const [subjects, setSubjects] = useState<Subject[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+interface SubjectPerformance {
+  subject_id: number
+  average_score: number
+  total_assignments: number
+  completed_assignments: number
+  last_grade: string
+}
 
-  const subjectColors = [
-    "bg-blue-500",
-    "bg-green-500",
-    "bg-purple-500",
-    "bg-orange-500",
-    "bg-emerald-500",
-    "bg-teal-500",
-    "bg-indigo-500",
-    "bg-pink-500",
-    "bg-red-500",
-    "bg-yellow-500",
-  ]
+export default function SubjectsSection() {
+  const { student } = useStudentAuth()
+  const [subjects, setSubjects] = useState<Subject[]>([])
+  const [performance, setPerformance] = useState<SubjectPerformance[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
 
   useEffect(() => {
-    if (user?.userType === "student" && user.class) {
-      fetchStudentSubjects()
+    if (student) {
+      loadSubjects()
     }
-  }, [user])
+  }, [student])
 
-  const fetchStudentSubjects = async () => {
+  const loadSubjects = async () => {
+    if (!student) return
+
     try {
       setLoading(true)
-      setError(null)
 
-      console.log("Fetching subjects for class:", user?.class)
-
-      // Get subjects for the student's class using target_class column
-      const { data: subjectsData, error: subjectsError } = await supabase
+      // Load subjects for student's class
+      const { data: subjectsData, error } = await supabase
         .from("subjects")
-        .select(`
-          id,
-          name,
-          code,
-          target_class,
-          teachers (
-            first_name,
-            middle_name,
-            surname,
-            email
-          )
-        `)
-        .eq("target_class", user?.class)
+        .select("*")
+        .eq("target_class", student.class)
         .eq("status", "Active")
+        .order("name")
 
-      console.log("Subjects query result:", { subjectsData, subjectsError })
+      if (error) throw error
 
-      if (subjectsError) {
-        console.error("Error fetching subjects:", subjectsError)
-        setError("Failed to load subjects")
-        return
-      }
+      setSubjects(subjectsData || [])
 
-      // Get student's grades for these subjects
-      const subjectIds = subjectsData?.map((s) => s.id) || []
-      let gradesData = []
+      // Load performance data for each subject
+      if (subjectsData) {
+        const performanceData: SubjectPerformance[] = []
 
-      if (subjectIds.length > 0) {
-        const { data: grades, error: gradesError } = await supabase
-          .from("exam_results")
-          .select("subject_id, grade, percentage")
-          .eq("student_id", user?.dbId)
-          .in("subject_id", subjectIds)
+        for (const subject of subjectsData) {
+          // Get student's grades for this subject
+          const { data: grades } = await supabase
+            .from("student_exams")
+            .select("total")
+            .eq("student_id", student.id)
+            .eq("subject", subject.name)
+            .not("total", "is", null)
 
-        console.log("Grades query result:", { grades, gradesError })
+          // Get assignments for this subject
+          const { data: assignments } = await supabase
+            .from("assignments")
+            .select("id, status")
+            .eq("subject_name", subject.name)
+            .eq("class_name", student.class)
 
-        if (!gradesError) {
-          gradesData = grades || []
+          // Get student's assignment submissions
+          const { data: submissions } = await supabase
+            .from("assignment_submissions")
+            .select("assignment_id")
+            .eq("student_id", student.id)
+
+          const averageScore =
+            grades && grades.length > 0 ? grades.reduce((sum, grade) => sum + (grade.total || 0), 0) / grades.length : 0
+
+          const lastGrade = grades && grades.length > 0 ? `${grades[grades.length - 1].total}%` : "N/A"
+
+          performanceData.push({
+            subject_id: subject.id,
+            average_score: averageScore,
+            total_assignments: assignments?.length || 0,
+            completed_assignments: submissions?.length || 0,
+            last_grade: lastGrade,
+          })
         }
+
+        setPerformance(performanceData)
       }
-
-      // Get assignments count for each subject
-      let assignmentsData = []
-      if (subjectIds.length > 0) {
-        const { data: assignments, error: assignmentsError } = await supabase
-          .from("assignments")
-          .select("subject_id, id")
-          .in("subject_id", subjectIds)
-          .eq("status", "Active")
-
-        console.log("Assignments query result:", { assignments, assignmentsError })
-
-        if (!assignmentsError) {
-          assignmentsData = assignments || []
-        }
-      }
-
-      // Get attendance data
-      let attendanceData = []
-      if (user?.dbId) {
-        const { data: attendance, error: attendanceError } = await supabase
-          .from("attendance")
-          .select("subject_id, status")
-          .eq("student_id", user.dbId)
-          .in("subject_id", subjectIds)
-
-        console.log("Attendance query result:", { attendance, attendanceError })
-
-        if (!attendanceError) {
-          attendanceData = attendance || []
-        }
-      }
-
-      // Process and combine the data
-      const processedSubjects =
-        subjectsData?.map((subject, index) => {
-          const teacherName = subject.teachers
-            ? `${subject.teachers.first_name} ${subject.teachers.middle_name || ""} ${subject.teachers.surname}`.trim()
-            : "Not Assigned"
-
-          const subjectGrades = gradesData.filter((g) => g.subject_id === subject.id)
-          const latestGrade = subjectGrades.length > 0 ? subjectGrades[subjectGrades.length - 1] : null
-
-          const subjectAssignments = assignmentsData.filter((a) => a.subject_id === subject.id)
-
-          const subjectAttendance = attendanceData.filter((a) => a.subject_id === subject.id)
-          const totalClasses = subjectAttendance.length
-          const attendedClasses = subjectAttendance.filter((a) => a.status === "Present").length
-
-          return {
-            id: subject.id,
-            name: subject.name,
-            code: subject.code,
-            teacher_name: teacherName,
-            teacher_email: subject.teachers?.email || "",
-            current_grade: latestGrade?.grade || "N/A",
-            progress: latestGrade?.percentage || Math.floor(Math.random() * 30) + 70, // Fallback to random for demo
-            total_classes: totalClasses || 40, // Fallback for demo
-            attended_classes: attendedClasses || Math.floor(Math.random() * 5) + 35, // Fallback for demo
-            assignments_count: subjectAssignments.length,
-            tests_count: Math.floor(Math.random() * 3) + 1, // Fallback for demo
-            color: subjectColors[index % subjectColors.length],
-          }
-        }) || []
-
-      console.log("Processed subjects:", processedSubjects)
-      setSubjects(processedSubjects)
-    } catch (err) {
-      console.error("Error in fetchStudentSubjects:", err)
-      setError("Failed to load subjects data")
+    } catch (error) {
+      console.error("Error loading subjects:", error)
     } finally {
       setLoading(false)
     }
   }
 
+  const getSubjectPerformance = (subjectId: number) => {
+    return performance.find((p) => p.subject_id === subjectId)
+  }
+
+  const getPerformanceColor = (score: number) => {
+    if (score >= 80) return "text-green-600"
+    if (score >= 60) return "text-yellow-600"
+    return "text-red-600"
+  }
+
+  const filteredSubjects = subjects.filter(
+    (subject) =>
+      subject.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      subject.teacher_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      subject.department.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
+
+  if (!student) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-gray-500">Please log in to view your subjects.</p>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">My Subjects</h1>
-          <p className="text-gray-600">Loading your subjects...</p>
-        </div>
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <span className="ml-2 text-gray-600">Loading subjects data...</span>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading subjects...</p>
         </div>
       </div>
     )
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">My Subjects</h1>
-          <p className="text-red-600">{error}</p>
-        </div>
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-gray-600 mb-4">Unable to load subjects data.</p>
-            <Button onClick={fetchStudentSubjects} variant="outline">
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (subjects.length === 0) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">My Subjects</h1>
-          <p className="text-gray-600">No subjects found for your class</p>
-        </div>
-        <Card>
-          <CardContent className="p-6 text-center">
-            <BookOpen className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-600 mb-2">No subjects available for class: {user?.class}</p>
-            <p className="text-sm text-gray-500">Contact your administrator if this seems incorrect.</p>
-            <Button onClick={fetchStudentSubjects} variant="outline" className="mt-4">
-              Refresh
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  const overallStats = {
-    totalSubjects: subjects.length,
-    averageGrade: "A", // Calculate from actual grades
-    averageProgress: Math.round(subjects.reduce((sum, subject) => sum + (subject.progress || 0), 0) / subjects.length),
-    totalAssignments: subjects.reduce((sum, subject) => sum + (subject.assignments_count || 0), 0),
-    totalTests: subjects.reduce((sum, subject) => sum + (subject.tests_count || 0), 0),
   }
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">My Subjects</h1>
-        <p className="text-gray-600">Overview of all your subjects and academic performance</p>
-        <p className="text-sm text-gray-500 mt-1">Class: {user?.class}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">My Subjects</h1>
+          <p className="text-gray-600">View your subjects and academic performance</p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <BookOpen className="h-5 w-5 text-blue-600" />
+          <span className="text-sm text-gray-600">{subjects.length} subjects</span>
+        </div>
       </div>
 
-      {/* Overview Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <BookOpen className="h-8 w-8 mx-auto text-blue-600 mb-2" />
-            <div className="text-2xl font-bold text-gray-900">{overallStats.totalSubjects}</div>
-            <div className="text-sm text-gray-500">Total Subjects</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 text-center">
-            <Award className="h-8 w-8 mx-auto text-green-600 mb-2" />
-            <div className="text-2xl font-bold text-gray-900">{overallStats.averageGrade}</div>
-            <div className="text-sm text-gray-500">Average Grade</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 text-center">
-            <TrendingUp className="h-8 w-8 mx-auto text-purple-600 mb-2" />
-            <div className="text-2xl font-bold text-gray-900">{overallStats.averageProgress}%</div>
-            <div className="text-sm text-gray-500">Avg Progress</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 text-center">
-            <Calendar className="h-8 w-8 mx-auto text-orange-600 mb-2" />
-            <div className="text-2xl font-bold text-gray-900">{overallStats.totalAssignments}</div>
-            <div className="text-sm text-gray-500">Assignments</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 text-center">
-            <Clock className="h-8 w-8 mx-auto text-red-600 mb-2" />
-            <div className="text-2xl font-bold text-gray-900">{overallStats.totalTests}</div>
-            <div className="text-sm text-gray-500">Tests</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Subjects Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {subjects.map((subject) => (
-          <Card key={subject.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className={`w-4 h-4 rounded-full ${subject.color}`} />
-                  <div>
-                    <CardTitle className="text-lg">{subject.name}</CardTitle>
-                    <CardDescription>{subject.code}</CardDescription>
-                  </div>
-                </div>
-                <Badge variant={subject.current_grade?.startsWith("A") ? "default" : "secondary"}>
-                  {subject.current_grade}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Teacher */}
-              <div>
-                <p className="text-sm font-medium text-gray-700">Teacher</p>
-                <p className="text-sm text-gray-600">{subject.teacher_name}</p>
-              </div>
-
-              {/* Progress */}
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span>Progress</span>
-                  <span>{subject.progress}%</span>
-                </div>
-                <Progress value={subject.progress} className="h-2" />
-              </div>
-
-              {/* Attendance */}
-              <div>
-                <p className="text-sm font-medium text-gray-700">Attendance</p>
-                <p className="text-sm text-gray-600">
-                  {subject.attended_classes}/{subject.total_classes} classes (
-                  {Math.round(((subject.attended_classes || 0) / (subject.total_classes || 1)) * 100)}%)
-                </p>
-              </div>
-
-              {/* Stats */}
-              <div className="flex justify-between text-sm">
-                <div className="text-center">
-                  <div className="font-semibold text-blue-600">{subject.assignments_count}</div>
-                  <div className="text-gray-500">Assignments</div>
-                </div>
-                <div className="text-center">
-                  <div className="font-semibold text-green-600">{subject.tests_count}</div>
-                  <div className="text-gray-500">Tests</div>
-                </div>
-              </div>
-
-              {/* Action Button */}
-              <Button variant="outline" className="w-full" size="sm">
-                <Eye className="mr-2 h-4 w-4" />
-                View Details
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Performance Summary */}
+      {/* Search */}
       <Card>
-        <CardHeader>
-          <CardTitle>Subject Performance Summary</CardTitle>
-          <CardDescription>Your current standing in each subject</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {subjects.map((subject) => (
-              <div key={subject.id} className="flex items-center space-x-4 p-3 rounded-lg border">
-                <div className={`w-3 h-3 rounded-full ${subject.color}`} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium">{subject.name}</h3>
-                    <Badge variant={subject.current_grade?.startsWith("A") ? "default" : "secondary"}>
-                      {subject.current_grade}
-                    </Badge>
-                  </div>
-                  <div className="mt-1">
-                    <Progress value={subject.progress} className="h-2" />
-                  </div>
-                  <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>{subject.progress}% completed</span>
-                    <span>
-                      Attendance: {Math.round(((subject.attended_classes || 0) / (subject.total_classes || 1)) * 100)}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
+        <CardContent className="pt-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search subjects, teachers, or departments..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
           </div>
         </CardContent>
       </Card>
+
+      {/* Subjects Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredSubjects.map((subject) => {
+          const subjectPerformance = getSubjectPerformance(subject.id)
+
+          return (
+            <Card key={subject.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-lg">{subject.name}</CardTitle>
+                    <CardDescription className="text-sm">Code: {subject.code}</CardDescription>
+                  </div>
+                  <Badge variant="default" className="text-xs">
+                    {subject.status}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Teacher Info */}
+                <div className="flex items-center space-x-2">
+                  <User className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm">{subject.teacher_name}</span>
+                </div>
+
+                {/* Department */}
+                <div className="flex items-center space-x-2">
+                  <BookOpen className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium">{subject.department}</span>
+                </div>
+
+                {/* Performance Stats */}
+                {subjectPerformance && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Average Score:</span>
+                      <span className={`text-sm font-medium ${getPerformanceColor(subjectPerformance.average_score)}`}>
+                        {subjectPerformance.average_score > 0
+                          ? `${Math.round(subjectPerformance.average_score)}%`
+                          : "N/A"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Last Grade:</span>
+                      <span className="text-sm font-medium">{subjectPerformance.last_grade}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Assignments:</span>
+                      <span className="text-sm">
+                        {subjectPerformance.completed_assignments}/{subjectPerformance.total_assignments}
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all"
+                        style={{
+                          width: `${
+                            subjectPerformance.total_assignments > 0
+                              ? (subjectPerformance.completed_assignments / subjectPerformance.total_assignments) * 100
+                              : 0
+                          }%`,
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Description */}
+                <div className="text-sm text-gray-600">{subject.description || "No description available"}</div>
+
+                {/* Action Buttons */}
+                <div className="flex space-x-2">
+                  <Button size="sm" variant="outline" className="flex-1 bg-transparent">
+                    <TrendingUp className="h-4 w-4 mr-1" />
+                    Performance
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1 bg-transparent">
+                    <FileText className="h-4 w-4 mr-1" />
+                    Materials
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      {/* No Results */}
+      {filteredSubjects.length === 0 && !loading && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No subjects found</h3>
+            <p className="text-gray-600">
+              {searchTerm ? "Try adjusting your search criteria" : "No subjects available for your class"}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <BookOpen className="h-8 w-8 text-blue-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Subjects</p>
+                <p className="text-2xl font-bold text-gray-900">{subjects.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <TrendingUp className="h-8 w-8 text-green-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Overall Average</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {performance.length > 0
+                    ? `${Math.round(performance.reduce((sum, p) => sum + p.average_score, 0) / performance.length)}%`
+                    : "N/A"}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center">
+              <FileText className="h-8 w-8 text-purple-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Assignments</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {performance.reduce((sum, p) => sum + p.total_assignments, 0)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

@@ -1,248 +1,304 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+
+import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Eye, EyeOff, User, GraduationCap, UserCheck } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { useTeacherAuth } from "@/contexts/teacher-auth-context"
 import { useStudentAuth } from "@/contexts/student-auth-context"
 
 export default function LoginPage() {
-  const [adminEmail, setAdminEmail] = useState("")
-  const [adminPassword, setAdminPassword] = useState("")
-  const [teacherEmail, setTeacherEmail] = useState("")
-  const [teacherPassword, setTeacherPassword] = useState("")
-  const [studentEmail, setStudentEmail] = useState("")
-  const [studentPassword, setStudentPassword] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [mounted, setMounted] = useState(false)
-
-  const { user, login: adminLogin } = useAuth()
-  const { teacher, login: teacherLogin } = useTeacherAuth()
-  const { student, login: studentLogin } = useStudentAuth()
   const router = useRouter()
+  const { login: adminLogin } = useAuth()
+  const { login: teacherLogin } = useTeacherAuth()
+  const { login: studentLogin } = useStudentAuth()
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
-  useEffect(() => {
-    if (mounted) {
-      if (user) {
-        router.push("/")
-      } else if (teacher) {
-        router.push("/teacher-dashboard")
-      } else if (student) {
-        router.push("/student-dashboard")
-      }
-    }
-  }, [user, teacher, student, router, mounted])
+  // Form states for each user type
+  const [adminForm, setAdminForm] = useState({ email: "", password: "" })
+  const [teacherForm, setTeacherForm] = useState({ email: "", password: "" })
+  const [studentForm, setStudentForm] = useState({ email: "", password: "" })
 
-  const handleAdminLogin = async (e: React.FormEvent) => {
+  const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError("")
 
     try {
-      console.log("Admin login attempt:", { adminEmail, adminPassword })
-      const success = await adminLogin(adminEmail, adminPassword)
+      const success = await adminLogin(adminForm.email, adminForm.password)
       if (success) {
-        router.push("/")
+        router.push("/dashboard")
       } else {
-        alert("Login failed - invalid credentials")
+        setError("Invalid admin credentials")
       }
-    } catch (error) {
-      console.error("Admin login error:", error)
-      alert("Login failed - please try again")
+    } catch (err) {
+      setError("An error occurred during admin login")
+      console.error("Admin login error:", err)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleTeacherLogin = async (e: React.FormEvent) => {
+  const handleTeacherSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError("")
 
     try {
-      console.log("Teacher login attempt:", { teacherEmail, teacherPassword })
-      const success = await teacherLogin(teacherEmail, teacherPassword)
+      const success = await teacherLogin(teacherForm.email, teacherForm.password)
       if (success) {
         router.push("/teacher-dashboard")
       } else {
-        alert("Login failed - invalid credentials")
+        setError("Invalid teacher credentials")
       }
-    } catch (error) {
-      console.error("Teacher login error:", error)
-      alert("Login failed - please try again")
+    } catch (err) {
+      setError("An error occurred during teacher login")
+      console.error("Teacher login error:", err)
     } finally {
       setLoading(false)
     }
   }
 
-  const handleStudentLogin = async (e: React.FormEvent) => {
+  const handleStudentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError("")
 
     try {
-      console.log("Student login attempt:", { studentEmail, studentPassword })
-      const success = await studentLogin(studentEmail, studentPassword)
+      const success = await studentLogin(studentForm.email, studentForm.password)
       if (success) {
         router.push("/student-dashboard")
       } else {
-        alert("Login failed - invalid credentials")
+        setError("Invalid student credentials")
       }
-    } catch (error) {
-      console.error("Student login error:", error)
-      alert("Login failed - please try again")
+    } catch (err) {
+      setError("An error occurred during student login")
+      console.error("Student login error:", err)
     } finally {
       setLoading(false)
     }
-  }
-
-  if (!mounted) {
-    return null
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">School Portal Login</h2>
-          <p className="mt-2 text-center text-sm text-gray-600">Sign in to your account</p>
+        <div className="text-center">
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">School Portal Login</h2>
+          <p className="mt-2 text-sm text-gray-600">Sign in to access your account</p>
         </div>
 
-        <Tabs defaultValue="admin" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="admin">Admin</TabsTrigger>
-            <TabsTrigger value="teacher">Teacher</TabsTrigger>
-            <TabsTrigger value="student">Student</TabsTrigger>
-          </TabsList>
+        <Card>
+          <CardContent className="p-6">
+            <Tabs defaultValue="admin" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="admin" className="flex items-center space-x-2">
+                  <UserCheck className="h-4 w-4" />
+                  <span>Admin</span>
+                </TabsTrigger>
+                <TabsTrigger value="teacher" className="flex items-center space-x-2">
+                  <User className="h-4 w-4" />
+                  <span>Teacher</span>
+                </TabsTrigger>
+                <TabsTrigger value="student" className="flex items-center space-x-2">
+                  <GraduationCap className="h-4 w-4" />
+                  <span>Student</span>
+                </TabsTrigger>
+              </TabsList>
 
-          <TabsContent value="admin">
-            <Card>
-              <CardHeader>
-                <CardTitle>Admin Login</CardTitle>
-                <CardDescription>Enter your admin credentials to access the dashboard</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleAdminLogin} className="space-y-4">
-                  <div>
-                    <Label htmlFor="admin-email">Email</Label>
-                    <Input
-                      id="admin-email"
-                      type="email"
-                      value={adminEmail}
-                      onChange={(e) => setAdminEmail(e.target.value)}
-                      required
-                      placeholder="super@school.com"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="admin-password">Password</Label>
-                    <Input
-                      id="admin-password"
-                      type="password"
-                      value={adminPassword}
-                      onChange={(e) => setAdminPassword(e.target.value)}
-                      required
-                      placeholder="admin123"
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Signing in..." : "Sign in as Admin"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              {error && (
+                <Alert className="mt-4 border-red-200 bg-red-50">
+                  <AlertDescription className="text-red-800">{error}</AlertDescription>
+                </Alert>
+              )}
 
-          <TabsContent value="teacher">
-            <Card>
-              <CardHeader>
-                <CardTitle>Teacher Login</CardTitle>
-                <CardDescription>Enter your teacher credentials to access your dashboard</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleTeacherLogin} className="space-y-4">
-                  <div>
-                    <Label htmlFor="teacher-email">Email</Label>
-                    <Input
-                      id="teacher-email"
-                      type="email"
-                      value={teacherEmail}
-                      onChange={(e) => setTeacherEmail(e.target.value)}
-                      required
-                      placeholder="mary.johnson@school.com"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="teacher-password">Password</Label>
-                    <Input
-                      id="teacher-password"
-                      type="password"
-                      value={teacherPassword}
-                      onChange={(e) => setTeacherPassword(e.target.value)}
-                      required
-                      placeholder="teacher123"
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Signing in..." : "Sign in as Teacher"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
+              {/* Admin Login */}
+              <TabsContent value="admin">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <UserCheck className="h-5 w-5" />
+                      <span>Admin Login</span>
+                    </CardTitle>
+                    <CardDescription>Sign in with your administrator credentials</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleAdminSubmit} className="space-y-4">
+                      <div>
+                        <Label htmlFor="admin-email">Email</Label>
+                        <Input
+                          id="admin-email"
+                          type="email"
+                          value={adminForm.email}
+                          onChange={(e) => setAdminForm({ ...adminForm, email: e.target.value })}
+                          placeholder="admin@school.com"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="admin-password">Password</Label>
+                        <div className="relative">
+                          <Input
+                            id="admin-password"
+                            type={showPassword ? "text" : "password"}
+                            value={adminForm.password}
+                            onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
+                            placeholder="Enter your password"
+                            required
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={() => setShowPassword(!showPassword)}
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                      <Button type="submit" className="w-full" disabled={loading}>
+                        {loading ? "Signing in..." : "Sign in as Admin"}
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-          <TabsContent value="student">
-            <Card>
-              <CardHeader>
-                <CardTitle>Student Login</CardTitle>
-                <CardDescription>Enter your student credentials to access your portal</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleStudentLogin} className="space-y-4">
-                  <div>
-                    <Label htmlFor="student-email">Email</Label>
-                    <Input
-                      id="student-email"
-                      type="email"
-                      value={studentEmail}
-                      onChange={(e) => setStudentEmail(e.target.value)}
-                      required
-                      placeholder="chioma.okoro@student.com"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="student-password">Password</Label>
-                    <Input
-                      id="student-password"
-                      type="password"
-                      value={studentPassword}
-                      onChange={(e) => setStudentPassword(e.target.value)}
-                      required
-                      placeholder="student123"
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Signing in..." : "Sign in as Student"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              {/* Teacher Login */}
+              <TabsContent value="teacher">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <User className="h-5 w-5" />
+                      <span>Teacher Login</span>
+                    </CardTitle>
+                    <CardDescription>Sign in with your teacher credentials</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleTeacherSubmit} className="space-y-4">
+                      <div>
+                        <Label htmlFor="teacher-email">Email</Label>
+                        <Input
+                          id="teacher-email"
+                          type="email"
+                          value={teacherForm.email}
+                          onChange={(e) => setTeacherForm({ ...teacherForm, email: e.target.value })}
+                          placeholder="teacher@school.com"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="teacher-password">Password</Label>
+                        <div className="relative">
+                          <Input
+                            id="teacher-password"
+                            type={showPassword ? "text" : "password"}
+                            value={teacherForm.password}
+                            onChange={(e) => setTeacherForm({ ...teacherForm, password: e.target.value })}
+                            placeholder="Enter your password"
+                            required
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={() => setShowPassword(!showPassword)}
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                      <Button type="submit" className="w-full" disabled={loading}>
+                        {loading ? "Signing in..." : "Sign in as Teacher"}
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-        <div className="text-center text-sm text-gray-600">
-          <p>Test Credentials:</p>
-          <p>Admin: super@school.com / admin123</p>
-          <p>Teacher: mary.johnson@school.com / teacher123</p>
-          <p>Student: chioma.okoro@student.com / student123</p>
-        </div>
+              {/* Student Login */}
+              <TabsContent value="student">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <GraduationCap className="h-5 w-5" />
+                      <span>Student Login</span>
+                    </CardTitle>
+                    <CardDescription>Sign in with your student credentials</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleStudentSubmit} className="space-y-4">
+                      <div>
+                        <Label htmlFor="student-email">Email</Label>
+                        <Input
+                          id="student-email"
+                          type="email"
+                          value={studentForm.email}
+                          onChange={(e) => setStudentForm({ ...studentForm, email: e.target.value })}
+                          placeholder="student@school.com"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="student-password">Password</Label>
+                        <div className="relative">
+                          <Input
+                            id="student-password"
+                            type={showPassword ? "text" : "password"}
+                            value={studentForm.password}
+                            onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })}
+                            placeholder="Enter your password"
+                            required
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={() => setShowPassword(!showPassword)}
+                          >
+                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                      <Button type="submit" className="w-full" disabled={loading}>
+                        {loading ? "Signing in..." : "Sign in as Student"}
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+
+            {/* Demo Credentials */}
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+              <h3 className="text-sm font-medium text-gray-900 mb-2">Demo Credentials:</h3>
+              <div className="text-xs text-gray-600 space-y-1">
+                <p>
+                  <strong>Admin:</strong> super@school.com / admin123
+                </p>
+                <p>
+                  <strong>Teacher:</strong> mary.johnson@school.com / teacher123
+                </p>
+                <p>
+                  <strong>Student:</strong> chioma.okoro@student.com / student123
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

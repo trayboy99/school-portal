@@ -1,239 +1,223 @@
 "use client"
 
+import { useStudentAuth } from "@/contexts/student-auth-context"
+import SubjectsSection from "./sections/subjects-section"
+import ClassSection from "./sections/class-section"
+import NotesSection from "./sections/notes-section"
+import AssignmentsSection from "./sections/assignments-section"
+import ResultsSection from "./sections/results-section"
+import MessagesSection from "./sections/messages-section"
+import SettingsSection from "./sections/settings-section"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import {
-  ClipboardList,
-  BarChart3,
-  Calendar,
-  Users,
-  Award,
-  Clock,
-  TrendingUp,
-  MessageSquare,
-  FileText,
-} from "lucide-react"
-import { useAuth } from "@/contexts/auth-context"
+import { BookOpen, Users, FileText, ClipboardList, BarChart3, MessageSquare, User } from "lucide-react"
 
-export function StudentDashboardContent() {
-  const { user } = useAuth()
+interface StudentDashboardContentProps {
+  activeSection: string
+  setActiveSection: (section: string) => void
+}
 
-  const stats = [
-    {
-      title: "Current GPA",
-      value: "3.85",
-      change: "+0.12 from last term",
-      icon: Award,
-      color: "text-green-600",
-    },
-    {
-      title: "Attendance",
-      value: "96%",
-      change: "185/192 days present",
-      icon: Calendar,
-      color: "text-blue-600",
-    },
-    {
-      title: "Assignments",
-      value: "8/10",
-      change: "2 pending submissions",
-      icon: ClipboardList,
-      color: "text-orange-600",
-    },
-    {
-      title: "Class Rank",
-      value: "5th",
-      change: "Out of 45 students",
-      icon: TrendingUp,
-      color: "text-purple-600",
-    },
-  ]
+export function StudentDashboardContent({ activeSection, setActiveSection }: StudentDashboardContentProps) {
+  const { student } = useStudentAuth()
 
-  const recentActivities = [
-    {
-      title: "Mathematics Assignment Submitted",
-      description: "Algebra Problem Set 5 - Due: Today",
-      time: "2 hours ago",
-      icon: ClipboardList,
-      color: "text-green-600",
-    },
-    {
-      title: "Physics Test Result Available",
-      description: "Mechanics Test - Score: 85/100",
-      time: "1 day ago",
-      icon: BarChart3,
-      color: "text-blue-600",
-    },
-    {
-      title: "New Message from Teacher",
-      description: "Mrs. Johnson - Chemistry Lab Instructions",
-      time: "2 days ago",
-      icon: MessageSquare,
-      color: "text-purple-600",
-    },
-    {
-      title: "E-Notes Updated",
-      description: "Biology - Cell Structure and Function",
-      time: "3 days ago",
-      icon: FileText,
-      color: "text-orange-600",
-    },
-  ]
-
-  const upcomingEvents = [
-    {
-      title: "Chemistry Test",
-      date: "Tomorrow at 10:00 AM",
-      subject: "Chemistry",
-      type: "test",
-    },
-    {
-      title: "Mathematics Assignment Due",
-      date: "Dec 18 at 11:59 PM",
-      subject: "Mathematics",
-      type: "assignment",
-    },
-    {
-      title: "Physics Lab Session",
-      date: "Dec 20 at 2:00 PM",
-      subject: "Physics",
-      type: "lab",
-    },
-    {
-      title: "English Essay Submission",
-      date: "Dec 22 at 11:59 PM",
-      subject: "English",
-      type: "assignment",
-    },
-  ]
-
-  const subjectProgress = [
-    { subject: "Mathematics", progress: 92, grade: "A" },
-    { subject: "Physics", progress: 88, grade: "A" },
-    { subject: "Chemistry", progress: 85, grade: "B+" },
-    { subject: "Biology", progress: 90, grade: "A" },
-    { subject: "English", progress: 87, grade: "B+" },
-  ]
-
-  return (
-    <div className="space-y-6">
-      {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-green-500 to-blue-600 rounded-lg p-6 text-white">
-        <h1 className="text-2xl font-bold mb-2">Welcome back, {user?.firstName}!</h1>
-        <p className="text-green-100">You're doing great this term. Keep up the excellent work!</p>
-        <div className="mt-4 flex items-center space-x-6 text-sm">
-          <div className="flex items-center">
-            <Users className="mr-2 h-4 w-4" />
-            Class: {user?.class}
-          </div>
-          <div className="flex items-center">
-            <Calendar className="mr-2 h-4 w-4" />
-            Second Term 2024-2025
-          </div>
-        </div>
+  const renderOverview = () => (
+    <div className="p-6">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Welcome back, {student?.first_name}!</h1>
+        <p className="text-gray-600 mt-2">Here's what's happening in your academic journey</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <Card key={index}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">{stat.title}</CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
-              <p className="text-xs text-gray-500 mt-1">{stat.change}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Activities */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Activities</CardTitle>
-              <CardDescription>Your latest academic activities</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentActivities.map((activity, index) => (
-                  <div key={index} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50">
-                    <div className="p-2 rounded-full bg-gray-100">
-                      <activity.icon className={`h-4 w-4 ${activity.color}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900">{activity.title}</p>
-                      <p className="text-sm text-gray-600">{activity.description}</p>
-                      <p className="text-xs text-gray-400 mt-1">{activity.time}</p>
-                    </div>
-                  </div>
-                ))}
+      {/* Student Info Card */}
+      <div className="mb-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <User className="mr-2 h-5 w-5" />
+              Student Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Full Name</p>
+                <p className="text-lg font-semibold">
+                  {student?.first_name} {student?.middle_name} {student?.surname}
+                </p>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Upcoming Events */}
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Clock className="mr-2 h-5 w-5" />
-                Upcoming Events
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {upcomingEvents.map((event, index) => (
-                <div key={index} className="flex items-center space-x-3 p-2 rounded-lg border">
-                  <div
-                    className={`w-3 h-3 rounded-full ${
-                      event.type === "test"
-                        ? "bg-red-500"
-                        : event.type === "assignment"
-                          ? "bg-orange-500"
-                          : "bg-blue-500"
-                    }`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm">{event.title}</p>
-                    <p className="text-xs text-gray-500">{event.date}</p>
-                  </div>
-                  <Badge variant="outline" className="text-xs">
-                    {event.subject}
-                  </Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Class</p>
+                <p className="text-lg font-semibold">{student?.current_class}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Roll Number</p>
+                <p className="text-lg font-semibold">{student?.roll_no}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Registration Number</p>
+                <p className="text-lg font-semibold">{student?.reg_number}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Subject Progress */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Subject Performance</CardTitle>
-          <CardDescription>Your current progress in each subject</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {subjectProgress.map((subject, index) => (
-              <div key={index} className="flex items-center space-x-4">
-                <div className="w-20 text-sm font-medium">{subject.subject}</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setActiveSection("subjects")}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">My Subjects</CardTitle>
+            <BookOpen className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">8</div>
+            <p className="text-xs text-muted-foreground">Active subjects for {student?.current_class}</p>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => setActiveSection("assignments")}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Assignments</CardTitle>
+            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">3</div>
+            <p className="text-xs text-muted-foreground">Pending assignments</p>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setActiveSection("results")}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Results</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">85%</div>
+            <p className="text-xs text-muted-foreground">Average score</p>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setActiveSection("class")}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">My Class</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{student?.current_class}</div>
+            <p className="text-xs text-muted-foreground">Section: {student?.section}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setActiveSection("notes")}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">E-Notes</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">12</div>
+            <p className="text-xs text-muted-foreground">Available notes</p>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setActiveSection("messages")}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Messages</CardTitle>
+            <MessageSquare className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">2</div>
+            <p className="text-xs text-muted-foreground">Unread messages</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activities</CardTitle>
+            <CardDescription>Your latest academic activities</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-4">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                 <div className="flex-1">
-                  <Progress value={subject.progress} className="h-2" />
+                  <p className="text-sm font-medium">Mathematics Assignment Submitted</p>
+                  <p className="text-xs text-muted-foreground">2 hours ago</p>
                 </div>
-                <div className="w-12 text-sm text-gray-500">{subject.progress}%</div>
-                <Badge variant={subject.grade.startsWith("A") ? "default" : "secondary"}>{subject.grade}</Badge>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              <div className="flex items-center space-x-4">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">English Test Result Available</p>
+                  <p className="text-xs text-muted-foreground">1 day ago</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">New Chemistry Notes Uploaded</p>
+                  <p className="text-xs text-muted-foreground">2 days ago</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Personal Information</CardTitle>
+            <CardDescription>Your profile details</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-sm font-medium">Email:</span>
+                <span className="text-sm text-gray-600">{student?.email}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium">Phone:</span>
+                <span className="text-sm text-gray-600">{student?.phone}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium">Gender:</span>
+                <span className="text-sm text-gray-600">{student?.gender}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium">Parent:</span>
+                <span className="text-sm text-gray-600">{student?.parent_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm font-medium">Parent Phone:</span>
+                <span className="text-sm text-gray-600">{student?.parent_phone}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
+
+  const renderContent = () => {
+    switch (activeSection) {
+      case "subjects":
+        return <SubjectsSection />
+      case "class":
+        return <ClassSection />
+      case "notes":
+        return <NotesSection />
+      case "assignments":
+        return <AssignmentsSection />
+      case "results":
+        return <ResultsSection />
+      case "messages":
+        return <MessagesSection />
+      case "settings":
+        return <SettingsSection />
+      default:
+        return renderOverview()
+    }
+  }
+
+  return <div className="min-h-full">{renderContent()}</div>
 }
