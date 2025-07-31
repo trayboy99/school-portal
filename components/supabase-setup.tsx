@@ -1,82 +1,73 @@
 "use client"
 
 import { useState } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { CheckCircle, AlertCircle, ExternalLink } from "lucide-react"
 
-export default function SupabaseSetup() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [message, setMessage] = useState("")
-  const [isSuccess, setIsSuccess] = useState(false)
+export function SupabaseSetup() {
+  const [envStatus, setEnvStatus] = useState<"idle" | "checking" | "success" | "error">("idle")
+  const [envMessage, setEnvMessage] = useState("")
 
-  const setupDatabase = async () => {
-    setIsLoading(true)
-    setMessage("")
-
+  const checkEnvironment = async () => {
+    setEnvStatus("checking")
     try {
-      const response = await fetch("/api/setup-supabase", {
-        method: "POST",
-      })
-
+      const response = await fetch("/api/test-env")
       const result = await response.json()
 
-      if (result.success) {
-        setMessage("🎉 Supabase database tables created successfully!")
-        setIsSuccess(true)
+      if (response.ok) {
+        setEnvStatus("success")
+        setEnvMessage("Environment variables are properly configured!")
       } else {
-        setMessage(`❌ Failed to create database tables: ${result.error}`)
-        setIsSuccess(false)
+        setEnvStatus("error")
+        setEnvMessage(result.error || "Environment check failed")
       }
     } catch (error) {
-      setMessage("❌ Error setting up database")
-      setIsSuccess(false)
-    } finally {
-      setIsLoading(false)
+      setEnvStatus("error")
+      setEnvMessage("Failed to check environment variables")
     }
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card>
       <CardHeader>
-        <CardTitle>Supabase Database Setup</CardTitle>
+        <CardTitle>Supabase Configuration</CardTitle>
+        <CardDescription>Verify your Supabase environment variables are set up correctly</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-sm text-gray-600">
-          Click the button below to create all database tables for your school portal in Supabase.
-        </p>
+        <div className="space-y-2">
+          <h4 className="font-medium">Required Environment Variables:</h4>
+          <ul className="text-sm text-gray-600 space-y-1">
+            <li>• NEXT_PUBLIC_SUPABASE_URL</li>
+            <li>• NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
+            <li>• SUPABASE_SERVICE_ROLE_KEY</li>
+          </ul>
+        </div>
 
-        <Button onClick={setupDatabase} disabled={isLoading || isSuccess} className="w-full">
-          {isLoading ? "Creating Tables..." : isSuccess ? "Setup Complete!" : "Setup Supabase Database"}
+        <Button onClick={checkEnvironment} disabled={envStatus === "checking"}>
+          Check Environment Variables
         </Button>
 
-        {message && (
-          <div
-            className={`p-3 rounded text-sm ${isSuccess ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
+        {envMessage && (
+          <Alert
+            className={envStatus === "error" ? "border-red-200" : envStatus === "success" ? "border-green-200" : ""}
           >
-            {message}
-          </div>
+            {envStatus === "success" && <CheckCircle className="h-4 w-4" />}
+            {envStatus === "error" && <AlertCircle className="h-4 w-4" />}
+            <AlertDescription>{envMessage}</AlertDescription>
+          </Alert>
         )}
 
-        {isSuccess && (
-          <div className="text-xs text-gray-500 space-y-1">
-            <p>✅ Students table</p>
-            <p>✅ Teachers table</p>
-            <p>✅ Classes table</p>
-            <p>✅ Subjects table</p>
-            <p>✅ Exams table</p>
-            <p>✅ Student scores table</p>
-            <p>✅ Settings table</p>
-          </div>
-        )}
-
-        {isSuccess && (
-          <div className="bg-blue-50 p-3 rounded text-sm">
-            <p className="font-medium text-blue-800">Next Steps:</p>
-            <p className="text-blue-700 text-xs mt-1">
-              Visit your Supabase dashboard to see the tables and start migrating your existing functionality!
-            </p>
-          </div>
-        )}
+        <div className="pt-4 border-t">
+          <p className="text-sm text-gray-600 mb-2">Need help setting up Supabase? Visit the documentation:</p>
+          <Button variant="outline" size="sm" asChild>
+            <a href="https://supabase.com/docs" target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="mr-2 h-4 w-4" />
+              Supabase Docs
+            </a>
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )

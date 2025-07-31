@@ -3,303 +3,225 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { BookOpen, Calendar, TrendingUp, Users, FileText, MessageSquare } from "lucide-react"
-import { useStudentAuth } from "@/contexts/student-auth-context"
-import { supabase } from "@/lib/supabase"
+import { CalendarDays, BookOpen, Clock, Bell } from "lucide-react"
 
-interface DashboardStats {
-  totalSubjects: number
-  activeAssignments: number
-  upcomingExams: number
-  averageGrade: string
-  attendanceRate: string
-  unreadMessages: number
+interface OverviewData {
+  student: any
+  upcomingExams: any[]
+  recentGrades: any[]
+  announcements: any[]
+  attendance: {
+    present: number
+    total: number
+    percentage: number
+  }
 }
 
-interface RecentActivity {
-  id: string
-  type: "assignment" | "exam" | "grade" | "message"
-  title: string
-  description: string
-  date: string
-  status?: string
+interface OverviewSectionProps {
+  studentId: string
 }
 
-export default function OverviewSection() {
-  const { student } = useStudentAuth()
-  const [stats, setStats] = useState<DashboardStats>({
-    totalSubjects: 0,
-    activeAssignments: 0,
-    upcomingExams: 0,
-    averageGrade: "N/A",
-    attendanceRate: "N/A",
-    unreadMessages: 0,
-  })
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
+export function OverviewSection({ studentId }: OverviewSectionProps) {
+  const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (student) {
-      loadDashboardData()
+    const fetchOverviewData = async () => {
+      try {
+        const response = await fetch(`/api/students/${studentId}/overview`)
+        if (response.ok) {
+          const overviewData = await response.json()
+          setData(overviewData)
+        }
+      } catch (error) {
+        console.error("Error fetching overview data:", error)
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [student])
 
-  const loadDashboardData = async () => {
-    if (!student) return
-
-    try {
-      setLoading(true)
-
-      // Load subjects for student's class
-      const { data: subjects } = await supabase.from("subjects").select("*").eq("target_class", student.class)
-
-      // Load assignments for student's class
-      const { data: assignments } = await supabase
-        .from("assignments")
-        .select("*")
-        .eq("class_name", student.class)
-        .eq("status", "active")
-
-      // Load exams
-      const { data: exams } = await supabase.from("exams").select("*").gte("exam_date", new Date().toISOString())
-
-      // Load student grades
-      const { data: grades } = await supabase
-        .from("student_exams")
-        .select("total")
-        .eq("student_id", student.id)
-        .not("total", "is", null)
-
-      // Calculate average grade
-      let averageGrade = "N/A"
-      if (grades && grades.length > 0) {
-        const total = grades.reduce((sum, grade) => sum + (grade.total || 0), 0)
-        averageGrade = `${Math.round(total / grades.length)}%`
-      }
-
-      // Load attendance
-      const { data: attendance } = await supabase.from("attendance").select("status").eq("student_id", student.id)
-
-      let attendanceRate = "N/A"
-      if (attendance && attendance.length > 0) {
-        const present = attendance.filter((a) => a.status === "Present").length
-        attendanceRate = `${Math.round((present / attendance.length) * 100)}%`
-      }
-
-      setStats({
-        totalSubjects: subjects?.length || 0,
-        activeAssignments: assignments?.length || 0,
-        upcomingExams: exams?.length || 0,
-        averageGrade,
-        attendanceRate,
-        unreadMessages: 0,
-      })
-
-      // Create recent activity
-      const activities: RecentActivity[] = []
-
-      if (assignments) {
-        assignments.slice(0, 3).forEach((assignment) => {
-          activities.push({
-            id: assignment.id.toString(),
-            type: "assignment",
-            title: assignment.title,
-            description: `Due: ${new Date(assignment.due_date).toLocaleDateString()}`,
-            date: assignment.created_at,
-            status: "pending",
-          })
-        })
-      }
-
-      setRecentActivity(activities)
-    } catch (error) {
-      console.error("Error loading dashboard data:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  if (!student) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Please log in to view your dashboard.</p>
-      </div>
-    )
-  }
+    fetchOverviewData()
+  }, [studentId])
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading dashboard...</p>
-        </div>
-      </div>
-    )
+    return <div className="text-center py-8">Loading overview...</div>
+  }
+
+  if (!data) {
+    return <div className="text-center py-8">Failed to load overview data</div>
   }
 
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg">
-        <h1 className="text-2xl font-bold">Welcome back, {student.first_name}!</h1>
-        <p className="text-blue-100 mt-1">
-          {student.class} •{" "}
-          {new Date().toLocaleDateString("en-US", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}
-        </p>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Subjects</CardTitle>
-            <BookOpen className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalSubjects}</div>
-            <p className="text-xs text-muted-foreground">This semester</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Assignments</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activeAssignments}</div>
-            <p className="text-xs text-muted-foreground">Due soon</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Grade</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.averageGrade}</div>
-            <p className="text-xs text-muted-foreground">Overall performance</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Attendance</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.attendanceRate}</div>
-            <p className="text-xs text-muted-foreground">This term</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-            <CardDescription>Common tasks and shortcuts</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button className="w-full justify-start bg-transparent" variant="outline">
-              <FileText className="mr-2 h-4 w-4" />
-              View Assignments
-            </Button>
-            <Button className="w-full justify-start bg-transparent" variant="outline">
-              <TrendingUp className="mr-2 h-4 w-4" />
-              Check Results
-            </Button>
-            <Button className="w-full justify-start bg-transparent" variant="outline">
-              <Calendar className="mr-2 h-4 w-4" />
-              View Timetable
-            </Button>
-            <Button className="w-full justify-start bg-transparent" variant="outline">
-              <MessageSquare className="mr-2 h-4 w-4" />
-              Messages
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Recent Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest updates and notifications</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {recentActivity.length === 0 ? (
-              <p className="text-center text-gray-500 py-4">No recent activity</p>
-            ) : (
-              <div className="space-y-3">
-                {recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-start space-x-3 p-3 border rounded-lg">
-                    <div className="flex-shrink-0">
-                      {activity.type === "assignment" && <FileText className="h-4 w-4 text-blue-500" />}
-                      {activity.type === "exam" && <Calendar className="h-4 w-4 text-red-500" />}
-                      {activity.type === "grade" && <TrendingUp className="h-4 w-4 text-green-500" />}
-                      {activity.type === "message" && <MessageSquare className="h-4 w-4 text-purple-500" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{activity.title}</p>
-                      <p className="text-sm text-gray-500">{activity.description}</p>
-                      <p className="text-xs text-gray-400 mt-1">{new Date(activity.date).toLocaleDateString()}</p>
-                    </div>
-                    {activity.status && (
-                      <Badge variant="secondary" className="text-xs">
-                        {activity.status}
-                      </Badge>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Upcoming Events */}
+      {/* Welcome Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center">
-            <Calendar className="mr-2 h-5 w-5" />
-            Upcoming Events
-          </CardTitle>
+          <CardTitle>Welcome back, {data.student.first_name}!</CardTitle>
+          <CardDescription>
+            {data.student.current_class}-{data.student.section} • {new Date().toLocaleDateString()}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 border rounded-lg">
-              <div>
-                <p className="font-medium">Mathematics Test</p>
-                <p className="text-sm text-gray-500">Chapter 5: Algebra</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-medium">Tomorrow</p>
-                <p className="text-xs text-gray-500">10:00 AM</p>
-              </div>
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">{data.attendance.percentage}%</div>
+              <p className="text-sm text-gray-600">Attendance</p>
             </div>
-            <div className="flex items-center justify-between p-3 border rounded-lg">
-              <div>
-                <p className="font-medium">Science Project Due</p>
-                <p className="text-sm text-gray-500">Solar System Model</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-medium">Friday</p>
-                <p className="text-xs text-gray-500">End of day</p>
-              </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">{data.recentGrades.length}</div>
+              <p className="text-sm text-gray-600">Recent Grades</p>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-orange-600">{data.upcomingExams.length}</div>
+              <p className="text-sm text-gray-600">Upcoming Exams</p>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">{data.announcements.length}</div>
+              <p className="text-sm text-gray-600">Announcements</p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Quick Stats Grid */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Upcoming Exams */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5" />
+              Upcoming Exams
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.upcomingExams.length > 0 ? (
+              <div className="space-y-3">
+                {data.upcomingExams.slice(0, 3).map((exam) => (
+                  <div key={exam.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium">{exam.subject}</p>
+                      <p className="text-sm text-gray-600">{exam.exam_type}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">{new Date(exam.exam_date).toLocaleDateString()}</p>
+                      <Badge variant="outline">{exam.duration_minutes} min</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-gray-500 py-4">No upcoming exams</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Grades */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              Recent Grades
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.recentGrades.length > 0 ? (
+              <div className="space-y-3">
+                {data.recentGrades.slice(0, 3).map((grade) => (
+                  <div key={grade.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium">{grade.subject}</p>
+                      <p className="text-sm text-gray-600">{grade.exam_type}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">
+                        {grade.score}/{grade.max_score}
+                      </p>
+                      <Badge
+                        variant={grade.grade === "A" ? "default" : grade.grade === "F" ? "destructive" : "secondary"}
+                      >
+                        {grade.grade}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-gray-500 py-4">No recent grades</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Announcements */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Announcements
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {data.announcements.length > 0 ? (
+              <div className="space-y-3">
+                {data.announcements.slice(0, 3).map((announcement) => (
+                  <div key={announcement.id} className="p-3 border rounded-lg">
+                    <p className="font-medium">{announcement.title}</p>
+                    <p className="text-sm text-gray-600 mt-1">{announcement.message}</p>
+                    <p className="text-xs text-gray-500 mt-2">
+                      {new Date(announcement.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-gray-500 py-4">No announcements</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Today's Schedule */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Today's Schedule
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <div>
+                  <p className="font-medium">Mathematics</p>
+                  <p className="text-sm text-gray-600">Mr. Johnson</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium">08:00 - 09:30</p>
+                  <p className="text-xs text-gray-500">Room 101</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <div>
+                  <p className="font-medium">English</p>
+                  <p className="text-sm text-gray-600">Mrs. Smith</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium">09:45 - 11:15</p>
+                  <p className="text-xs text-gray-500">Room 205</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <div>
+                  <p className="font-medium">Physics</p>
+                  <p className="text-sm text-gray-600">Dr. Brown</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium">11:30 - 13:00</p>
+                  <p className="text-xs text-gray-500">Lab 1</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

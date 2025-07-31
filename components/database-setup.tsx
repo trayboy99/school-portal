@@ -2,16 +2,19 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { CheckCircle, AlertCircle, Loader2 } from "lucide-react"
+import { SupabaseSetup } from "./supabase-setup"
+import { ManualDatabaseSetup } from "./manual-database-setup"
 
-export default function DatabaseSetup() {
-  const [isLoading, setIsLoading] = useState(false)
+export function DatabaseSetup() {
+  const [setupStatus, setSetupStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
   const [message, setMessage] = useState("")
-  const [isSuccess, setIsSuccess] = useState(false)
 
-  const setupDatabase = async () => {
-    setIsLoading(true)
-    setMessage("")
+  const runSetup = async () => {
+    setSetupStatus("loading")
+    setMessage("Setting up database tables...")
 
     try {
       const response = await fetch("/api/setup-database", {
@@ -20,56 +23,48 @@ export default function DatabaseSetup() {
 
       const result = await response.json()
 
-      if (result.success) {
-        setMessage("🎉 Database tables created successfully!")
-        setIsSuccess(true)
+      if (response.ok) {
+        setSetupStatus("success")
+        setMessage("Database setup completed successfully!")
       } else {
-        setMessage("❌ Failed to create database tables")
-        setIsSuccess(false)
+        setSetupStatus("error")
+        setMessage(result.error || "Setup failed")
       }
     } catch (error) {
-      setMessage("❌ Error setting up database")
-      setIsSuccess(false)
-    } finally {
-      setIsLoading(false)
+      setSetupStatus("error")
+      setMessage("Network error occurred")
     }
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <CardTitle>Database Setup</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-gray-600">
-          Click the button below to create all database tables for your school portal.
-        </p>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Automatic Database Setup</CardTitle>
+          <CardDescription>This will create all necessary tables and insert sample data</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button onClick={runSetup} disabled={setupStatus === "loading"} className="w-full">
+            {setupStatus === "loading" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Run Database Setup
+          </Button>
 
-        <Button onClick={setupDatabase} disabled={isLoading || isSuccess} className="w-full">
-          {isLoading ? "Creating Tables..." : isSuccess ? "Setup Complete!" : "Setup Database"}
-        </Button>
+          {message && (
+            <Alert
+              className={
+                setupStatus === "error" ? "border-red-200" : setupStatus === "success" ? "border-green-200" : ""
+              }
+            >
+              {setupStatus === "success" && <CheckCircle className="h-4 w-4" />}
+              {setupStatus === "error" && <AlertCircle className="h-4 w-4" />}
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
 
-        {message && (
-          <div
-            className={`p-3 rounded text-sm ${isSuccess ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
-          >
-            {message}
-          </div>
-        )}
-
-        {isSuccess && (
-          <div className="text-xs text-gray-500 space-y-1">
-            <p>✅ Students table</p>
-            <p>✅ Teachers table</p>
-            <p>✅ Classes table</p>
-            <p>✅ Subjects table</p>
-            <p>✅ Exams table</p>
-            <p>✅ Student scores table</p>
-            <p>✅ Users table</p>
-            <p>✅ Settings table</p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      <SupabaseSetup />
+      <ManualDatabaseSetup />
+    </div>
   )
 }

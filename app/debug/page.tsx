@@ -1,163 +1,315 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, XCircle, Database, Key, Globe } from "lucide-react"
-import { useState } from "react"
+import { Loader2, CheckCircle, XCircle, Database, Users, GraduationCap } from "lucide-react"
 
 export default function DebugPage() {
-  const [connectionTest, setConnectionTest] = useState<"idle" | "testing" | "success" | "error">("idle")
-  const [errorDetails, setErrorDetails] = useState<string>("")
+  const [debugInfo, setDebugInfo] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
-  // Environment variables check
-  const envVars = {
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  }
+  useEffect(() => {
+    fetchDebugInfo()
+  }, [])
 
-  const testConnection = async () => {
-    setConnectionTest("testing")
+  const fetchDebugInfo = async () => {
     try {
-      const { createClient } = await import("@supabase/supabase-js")
-
-      if (!envVars.supabaseUrl || !envVars.supabaseAnonKey) {
-        throw new Error("Missing environment variables")
-      }
-
-      const supabase = createClient(envVars.supabaseUrl, envVars.supabaseAnonKey)
-
-      // Test connection
-      const { error } = await supabase.from("students").select("count", { count: "exact", head: true })
-
-      if (error) {
-        throw error
-      }
-
-      setConnectionTest("success")
-      setErrorDetails("")
-    } catch (error: any) {
-      setConnectionTest("error")
-      setErrorDetails(error.message || "Unknown error")
+      setLoading(true)
+      const response = await fetch("/api/debug")
+      const data = await response.json()
+      setDebugInfo(data)
+    } catch (err) {
+      setError("Failed to fetch debug information")
+    } finally {
+      setLoading(false)
     }
   }
 
-  return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold">Configuration Debug</h1>
-        <p className="text-gray-600 mt-2">Check your Supabase configuration and connection</p>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading debug information...</p>
+        </div>
       </div>
+    )
+  }
 
-      {/* Environment Variables */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Key className="h-5 w-5" />
-            Environment Variables
-          </CardTitle>
-          <CardDescription>Check if all required environment variables are set</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-              <span className="font-mono text-sm">NEXT_PUBLIC_SUPABASE_URL</span>
-              {envVars.supabaseUrl ? (
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                  <Badge variant="secondary">{envVars.supabaseUrl}</Badge>
-                </div>
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <XCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+              <p className="text-red-600">{error}</p>
+              <Button onClick={fetchDebugInfo} className="mt-4">
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Database Debug Information</h1>
+          <div className="flex gap-2">
+            <Button onClick={fetchDebugInfo} variant="outline">
+              Refresh
+            </Button>
+            <Button asChild>
+              <a href="/">Back to Login</a>
+            </Button>
+          </div>
+        </div>
+
+        {/* Environment Info */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              Environment Configuration
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center gap-2">
+                <span>Supabase URL:</span>
+                {debugInfo?.environment?.hasUrl ? (
+                  <Badge variant="default" className="bg-green-100 text-green-800">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Set
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive">
+                    <XCircle className="h-3 w-3 mr-1" />
+                    Missing
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span>Service Key:</span>
+                {debugInfo?.environment?.hasServiceKey ? (
+                  <Badge variant="default" className="bg-green-100 text-green-800">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Set
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive">
+                    <XCircle className="h-3 w-3 mr-1" />
+                    Missing
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <span>Platform:</span>
+                <Badge variant="outline">{debugInfo?.environment?.platform}</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Connection Status */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Database Connection</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              {debugInfo?.connection?.success ? (
+                <>
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <span className="text-green-600">Connected successfully</span>
+                </>
               ) : (
+                <>
+                  <XCircle className="h-5 w-5 text-red-500" />
+                  <span className="text-red-600">Connection failed: {debugInfo?.connection?.error}</span>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tables Info */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Students Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GraduationCap className="h-5 w-5" />
+                Students Table
+              </CardTitle>
+              <CardDescription>Student login credentials and data</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <XCircle className="h-4 w-4 text-red-500" />
-                  <Badge variant="destructive">Missing</Badge>
+                  <span>Status:</span>
+                  {debugInfo?.tables?.students?.exists ? (
+                    <Badge variant="default" className="bg-green-100 text-green-800">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Exists
+                    </Badge>
+                  ) : (
+                    <Badge variant="destructive">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Missing
+                    </Badge>
+                  )}
+                </div>
+
+                {debugInfo?.tables?.students?.exists && (
+                  <div>
+                    <p className="text-sm text-gray-600 mb-2">Records found: {debugInfo.tables.students.count}</p>
+                    {debugInfo.tables.students.sampleData?.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Sample records:</p>
+                        {debugInfo.tables.students.sampleData.map((student, index) => (
+                          <div key={index} className="bg-gray-50 p-2 rounded text-xs">
+                            <p>
+                              <strong>Username:</strong> {student.username}
+                            </p>
+                            <p>
+                              <strong>Name:</strong> {student.first_name} {student.surname}
+                            </p>
+                            <p>
+                              <strong>Class:</strong> {student.current_class}
+                            </p>
+                            <p>
+                              <strong>Has Password:</strong>{" "}
+                              {student.password_hash || student.custom_password ? "Yes" : "No"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {debugInfo?.tables?.students?.error && (
+                  <p className="text-sm text-red-600">Error: {debugInfo.tables.students.error}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Teachers Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Teachers Table
+              </CardTitle>
+              <CardDescription>Teacher login credentials and data</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <span>Status:</span>
+                  {debugInfo?.tables?.teachers?.exists ? (
+                    <Badge variant="default" className="bg-green-100 text-green-800">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Exists
+                    </Badge>
+                  ) : (
+                    <Badge variant="destructive">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Missing
+                    </Badge>
+                  )}
+                </div>
+
+                {debugInfo?.tables?.teachers?.exists && (
+                  <div>
+                    <p className="text-sm text-gray-600 mb-2">Records found: {debugInfo.tables.teachers.count}</p>
+                    {debugInfo.tables.teachers.sampleData?.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Sample records:</p>
+                        {debugInfo.tables.teachers.sampleData.map((teacher, index) => (
+                          <div key={index} className="bg-gray-50 p-2 rounded text-xs">
+                            <p>
+                              <strong>Username:</strong> {teacher.username}
+                            </p>
+                            <p>
+                              <strong>Name:</strong> {teacher.first_name} {teacher.surname}
+                            </p>
+                            <p>
+                              <strong>Department:</strong> {teacher.department}
+                            </p>
+                            <p>
+                              <strong>Has Password:</strong> {teacher.custom_password ? "Yes" : "No"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {debugInfo?.tables?.teachers?.error && (
+                  <p className="text-sm text-red-600">Error: {debugInfo.tables.teachers.error}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Login Instructions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Available Login Credentials</CardTitle>
+            <CardDescription>Use these credentials to test the login system</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-medium text-green-600">Admin (Always Available)</h4>
+                <p className="text-sm text-gray-600">Username: admin | Password: admin123</p>
+              </div>
+
+              {debugInfo?.tables?.students?.count > 0 && (
+                <div>
+                  <h4 className="font-medium text-blue-600">Students ({debugInfo.tables.students.count} available)</h4>
+                  <p className="text-sm text-gray-600">Check the sample data above for usernames and passwords</p>
+                </div>
+              )}
+
+              {debugInfo?.tables?.teachers?.count > 0 && (
+                <div>
+                  <h4 className="font-medium text-purple-600">
+                    Teachers ({debugInfo.tables.teachers.count} available)
+                  </h4>
+                  <p className="text-sm text-gray-600">Check the sample data above for usernames and passwords</p>
+                </div>
+              )}
+
+              {!debugInfo?.tables?.students?.count && !debugInfo?.tables?.teachers?.count && (
+                <div className="bg-yellow-50 p-4 rounded-lg">
+                  <p className="text-yellow-800">
+                    No student or teacher records found. Visit the{" "}
+                    <a href="/setup" className="underline">
+                      setup page
+                    </a>{" "}
+                    to create sample data.
+                  </p>
                 </div>
               )}
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-              <span className="font-mono text-sm">NEXT_PUBLIC_SUPABASE_ANON_KEY</span>
-              {envVars.supabaseAnonKey ? (
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                  <Badge variant="secondary">{envVars.supabaseAnonKey.substring(0, 20)}...</Badge>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <XCircle className="h-4 w-4 text-red-500" />
-                  <Badge variant="destructive">Missing</Badge>
-                </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Connection Test */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5" />
-            Connection Test
-          </CardTitle>
-          <CardDescription>Test the connection to your Supabase database</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button
-            onClick={testConnection}
-            disabled={connectionTest === "testing" || !envVars.supabaseUrl || !envVars.supabaseAnonKey}
-            className="w-full"
-          >
-            {connectionTest === "testing" ? "Testing Connection..." : "Test Connection"}
-          </Button>
-
-          {connectionTest === "success" && (
-            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded">
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <span className="text-green-700">✅ Connection successful!</span>
-            </div>
-          )}
-
-          {connectionTest === "error" && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded">
-                <XCircle className="h-5 w-5 text-red-500" />
-                <span className="text-red-700">❌ Connection failed</span>
-              </div>
-              <div className="p-3 bg-gray-50 rounded">
-                <p className="text-sm font-medium">Error Details:</p>
-                <code className="text-xs text-red-600">{errorDetails}</code>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Instructions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Globe className="h-5 w-5" />
-            Setup Instructions
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <div className="p-3 border-l-4 border-blue-500 bg-blue-50">
-              <h4 className="font-medium">1. Get Supabase Credentials</h4>
-              <p className="text-sm text-gray-600">Go to Supabase Dashboard → Settings → API</p>
-            </div>
-            <div className="p-3 border-l-4 border-blue-500 bg-blue-50">
-              <h4 className="font-medium">2. Add to Vercel</h4>
-              <p className="text-sm text-gray-600">Vercel Dashboard → Project → Settings → Environment Variables</p>
-            </div>
-            <div className="p-3 border-l-4 border-blue-500 bg-blue-50">
-              <h4 className="font-medium">3. Redeploy</h4>
-              <p className="text-sm text-gray-600">Trigger a new deployment after adding variables</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        <div className="text-center text-sm text-gray-500">Last updated: {debugInfo?.timestamp}</div>
+      </div>
     </div>
   )
 }

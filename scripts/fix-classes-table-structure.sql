@@ -1,65 +1,51 @@
--- Remove room column from classes table and verify structure
--- This script removes the room column and shows the correct structure
+-- Add missing columns to classes table
+DO $$ 
+BEGIN
+    -- Add category column if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'classes' AND column_name = 'category'
+    ) THEN
+        ALTER TABLE classes ADD COLUMN category VARCHAR(50);
+    END IF;
 
--- Drop the room column
-ALTER TABLE classes DROP COLUMN IF EXISTS room;
+    -- Add teacher_name column if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'classes' AND column_name = 'teacher_name'
+    ) THEN
+        ALTER TABLE classes ADD COLUMN teacher_name VARCHAR(255);
+    END IF;
 
--- Verify the classes table structure
-SELECT 'CLASSES TABLE STRUCTURE:' as info;
-SELECT 
-    column_name,
-    data_type,
-    is_nullable,
-    column_default
-FROM information_schema.columns 
-WHERE table_name = 'classes' 
-AND table_schema = 'public'
-ORDER BY ordinal_position;
+    -- Add subjects_count column if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'classes' AND column_name = 'subjects_count'
+    ) THEN
+        ALTER TABLE classes ADD COLUMN subjects_count INTEGER DEFAULT 0;
+    END IF;
 
--- Show sample data with correct columns
-SELECT 'SAMPLE CLASSES DATA:' as info;
-SELECT 
-    id,
-    name,
-    category,
-    section,
-    academic_year,
-    teacher_name,
-    max_students,
-    current_students,
-    subjects_count,
-    status
-FROM classes 
-LIMIT 5;
+    -- Add description column if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'classes' AND column_name = 'description'
+    ) THEN
+        ALTER TABLE classes ADD COLUMN description TEXT;
+    END IF;
+END $$;
 
--- Update current_students count based on actual students in database
+-- Update existing classes with sample data
+UPDATE classes SET category = 'Junior' WHERE class_name LIKE 'JSS%';
+UPDATE classes SET category = 'Senior' WHERE class_name LIKE 'SSS%';
+
+-- Update teacher names based on class_teacher_id
 UPDATE classes 
-SET current_students = (
-    SELECT COUNT(*) 
-    FROM students 
-    WHERE students.class = classes.name 
-    AND students.status = 'Active'
-);
+SET teacher_name = CONCAT(t.first_name, ' ', COALESCE(t.middle_name, ''), ' ', t.surname)
+FROM teachers t 
+WHERE classes.class_teacher_id::text = t.id::text;
 
--- Update subjects_count based on actual subjects in database
-UPDATE classes 
-SET subjects_count = (
-    SELECT COUNT(*) 
-    FROM subjects 
-    WHERE subjects.target_class = classes.name 
-    AND subjects.status = 'Active'
-);
+-- Set default subjects count
+UPDATE classes SET subjects_count = 8 WHERE subjects_count IS NULL;
 
--- Show updated counts
-SELECT 'UPDATED CLASSES WITH CORRECT COUNTS:' as info;
-SELECT 
-    name as class_name,
-    category,
-    section,
-    teacher_name,
-    current_students,
-    subjects_count,
-    max_students,
-    academic_year
-FROM classes 
-ORDER BY category, name;
+-- Verify the updates
+SELECT id, class_name, category, section, teacher_name, subjects_count FROM classes;

@@ -1,136 +1,42 @@
--- Create the students table with all required fields
-CREATE TABLE students (
-    -- Primary key and system fields
-    id SERIAL PRIMARY KEY,
-    roll_no VARCHAR(20) UNIQUE NOT NULL,
-    status VARCHAR(20) DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive', 'Suspended', 'Graduated')),
-    admission_date DATE DEFAULT CURRENT_DATE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
-    -- Student photo/image
-    avatar TEXT, -- URL or base64 image data
-    
-    -- Personal information
-    surname VARCHAR(100) NOT NULL,
-    middle_name VARCHAR(100),
-    first_name VARCHAR(100) NOT NULL,
-    full_name VARCHAR(300) GENERATED ALWAYS AS (
-        TRIM(CONCAT(first_name, ' ', COALESCE(middle_name, ''), ' ', surname))
-    ) STORED,
-    
-    -- Contact information
-    email VARCHAR(255) UNIQUE NOT NULL,
-    phone VARCHAR(20),
-    
-    -- Personal details
-    date_of_birth DATE NOT NULL,
-    gender VARCHAR(10) NOT NULL CHECK (gender IN ('Male', 'Female')),
-    home_address TEXT,
-    
-    -- Academic information
-    class VARCHAR(50) NOT NULL,
-    section VARCHAR(50) NOT NULL,
-    
-    -- Parent/Guardian information
-    parent_name VARCHAR(200) NOT NULL,
-    parent_phone VARCHAR(20) NOT NULL,
-    parent_email VARCHAR(255),
-    
-    -- Emergency contact (additional)
-    emergency_contact VARCHAR(200),
-    emergency_phone VARCHAR(20),
-    
-    -- Medical information (optional)
-    medical_info TEXT,
-    
-    -- Login credentials
-    username VARCHAR(100) UNIQUE, -- If custom username, otherwise use email
-    password_hash VARCHAR(255), -- Hashed password
-    credential_method VARCHAR(20) DEFAULT 'auto' CHECK (credential_method IN ('auto', 'manual', 'email-setup')),
-    credentials_sent_to VARCHAR(20) CHECK (credentials_sent_to IN ('student', 'parent', 'both')),
-    setup_token VARCHAR(255), -- For email setup links
-    setup_token_expires TIMESTAMP WITH TIME ZONE, -- Token expiration
-    password_reset_required BOOLEAN DEFAULT FALSE,
-    last_login TIMESTAMP WITH TIME ZONE,
-    login_attempts INTEGER DEFAULT 0,
-    account_locked_until TIMESTAMP WITH TIME ZONE,
-    
-    -- Additional metadata
-    notes TEXT,
-    tags TEXT[], -- Array of tags for categorization
-    
-    -- Audit fields
-    created_by INTEGER, -- Reference to user who created the record
-    updated_by INTEGER  -- Reference to user who last updated the record
+CREATE TABLE IF NOT EXISTS students (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(50) UNIQUE NOT NULL,
+  password_hash VARCHAR(255),
+  custom_password VARCHAR(255),
+  first_name VARCHAR(100),
+  middle_name VARCHAR(100),
+  surname VARCHAR(100),
+  email VARCHAR(255),
+  current_class VARCHAR(50),
+  section VARCHAR(10),
+  roll_number VARCHAR(20),
+  date_of_birth DATE,
+  gender VARCHAR(10),
+  phone VARCHAR(20),
+  address TEXT,
+  parent_name VARCHAR(200),
+  parent_phone VARCHAR(20),
+  parent_email VARCHAR(255),
+  admission_date DATE DEFAULT CURRENT_DATE,
+  status VARCHAR(20) DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create indexes for better performance
-CREATE INDEX idx_students_roll_no ON students(roll_no);
-CREATE INDEX idx_students_email ON students(email);
-CREATE INDEX idx_students_username ON students(username);
-CREATE INDEX idx_students_class_section ON students(class, section);
-CREATE INDEX idx_students_parent_email ON students(parent_email);
-CREATE INDEX idx_students_status ON students(status);
-CREATE INDEX idx_students_admission_date ON students(admission_date);
-CREATE INDEX idx_students_full_name ON students(full_name);
-
--- Create trigger to automatically update the updated_at timestamp
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_students_updated_at 
-    BEFORE UPDATE ON students 
-    FOR EACH ROW 
-    EXECUTE FUNCTION update_updated_at_column();
-
--- Insert sample data to test the table
+-- Insert sample student data
 INSERT INTO students (
-    roll_no, surname, middle_name, first_name, email, phone,
-    date_of_birth, gender, home_address, class, section,
-    parent_name, parent_phone, parent_email,
-    credential_method, credentials_sent_to,
-    avatar
+  username, password_hash, custom_password, first_name, surname, 
+  email, current_class, section, roll_number, gender, phone,
+  parent_name, parent_phone, parent_email
 ) VALUES 
 (
-    '2024001', 'Doe', 'Michael', 'John', 'john.doe@email.com', '+234 801 234 5678',
-    '2010-05-20', 'Male', '123 Main Street, Lagos, Nigeria', 'JSS 1', 'Gold',
-    'Jane Doe', '+234 802 345 6789', 'jane.doe@email.com',
-    'auto', 'parent',
-    '/placeholder.svg?height=40&width=40'
+  'student1', 'student123', 'student123', 'John', 'Doe',
+  'john.doe@student.westminster.edu', 'Grade 10', 'A', '001', 'Male', '123-456-7890',
+  'Jane Doe', '123-456-7891', 'jane.doe@email.com'
 ),
 (
-    '2024002', 'Smith', 'Grace', 'Sarah', 'sarah.smith@email.com', '+234 803 456 7890',
-    '2009-08-15', 'Female', '456 Oak Avenue, Abuja, Nigeria', 'JSS 2', 'Silver',
-    'Robert Smith', '+234 804 567 8901', 'robert.smith@email.com',
-    'email-setup', 'both',
-    '/placeholder.svg?height=40&width=40'
-),
-(
-    '2024003', 'Johnson', NULL, 'David', 'david.johnson@email.com', '+234 805 678 9012',
-    '2011-03-10', 'Male', '789 Pine Road, Port Harcourt, Nigeria', 'JSS 1', 'Gold',
-    'Mary Johnson', '+234 806 789 0123', 'mary.johnson@email.com',
-    'manual', 'student',
-    '/placeholder.svg?height=40&width=40'
-);
-
--- Verify the table was created and populated
-SELECT 
-    'Table created successfully!' as status,
-    COUNT(*) as student_count
-FROM students;
-
--- Show the table structure
-SELECT 
-    column_name,
-    data_type,
-    is_nullable,
-    column_default
-FROM information_schema.columns 
-WHERE table_name = 'students' 
-ORDER BY ordinal_position;
+  'student2', 'student123', 'student123', 'Alice', 'Johnson',
+  'alice.johnson@student.westminster.edu', 'Grade 11', 'B', '002', 'Female', '123-456-7893',
+  'Bob Johnson', '123-456-7894', 'bob.johnson@email.com'
+)
+ON CONFLICT (username) DO NOTHING;
